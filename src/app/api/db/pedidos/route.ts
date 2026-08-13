@@ -55,22 +55,26 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const { items = [], ...pedidoFields } = body;
-  const now = nowIso();
+  const now = new Date();
   const pedidoId = newId();
 
+  // El body viene con timestamps como ISO strings (formato del frontend).
+  // Drizzle espera Date objects para columnas timestamptz — convertimos acá.
   const pedidoRow = {
     ...pedidoFields,
     id: pedidoId,
     createdAt: now,
     updatedAt: now,
+    cerradoAt: pedidoFields.cerradoAt ? new Date(pedidoFields.cerradoAt) : null,
+    entregadoAt: pedidoFields.entregadoAt ? new Date(pedidoFields.entregadoAt) : null,
   };
 
   const itemsRows = items.map((it: Record<string, unknown>) => ({
     ...it,
     id: it.id ?? newId(),
     pedidoId,
-    createdAt: now,
-    updatedAt: now,
+    createdAt: it.createdAt ? new Date(it.createdAt as string) : now,
+    updatedAt: it.updatedAt ? new Date(it.updatedAt as string) : now,
   }));
 
   await db.transaction(async (tx) => {
