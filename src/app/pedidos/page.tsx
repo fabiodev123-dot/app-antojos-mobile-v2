@@ -12,13 +12,13 @@ import { ShellHeader } from "@/components/layout/shell-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button-link";
 import { ColorStripe } from "@/components/features/color-badge";
+import { CollapsibleSection } from "@/components/features/collapsible-section";
 import { PedidoDetailDialog } from "@/components/features/pedido-detail-dialog";
 import { EmptyState } from "@/components/features/empty-state";
-import { CategoryChips } from "@/components/features/category-chips";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatHora, formatPrecio } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { EstadoPedido, Pedido } from "@/lib/types";
+import type { EstadoPedido, Pedido, Producto } from "@/lib/types";
 
 const ESTADOS: Array<{ value: EstadoPedido | "todos"; label: string }> = [
   { value: "todos", label: "Todos" },
@@ -36,21 +36,16 @@ const ESTADO_BADGE: Record<EstadoPedido, { label: string; className: string }> =
   cancelado: { label: "Cancelado", className: "bg-destructive/15 text-destructive ring-1 ring-destructive/30" },
 };
 
-const ALL_CATEGORIES = "todas";
-
 export default function PedidosPage() {
   const pedidos = useRepositoryList(pedidosRepository);
   const productos = useRepositoryList(productosRepository);
-  const categoriasVisibles = useRepositoryList(categoriasRepository).filter((c) => c.activo);
+  const categoriasVisibles = useRepositoryList(categoriasRepository)
+    .filter((c) => c.activo)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
   const [detailOpen, setDetailOpen] = useState(false);
   const [selected, setSelected] = useState<Pedido | null>(null);
-  const [categoriaActiva, setCategoriaActiva] = useState<string>(ALL_CATEGORIES);
 
-  /**
-   * Mapa productoId → categoriaId, construido una sola vez por render.
-   * Usado para filtrar pedidos por categoría con un Set por categoría
-   * (O(1) lookup en lugar de O(n) por pedido).
-   */
+  // Mapa productoId → categoriaId (O(1) lookup por cada item del pedido).
   const productoCategoria = useMemo(() => {
     const map = new Map<string, string>();
     for (const p of productos) {
@@ -59,32 +54,71 @@ export default function PedidosPage() {
     return map;
   }, [productos]);
 
-  /**
-   * Filtra los pedidos: si hay categoría activa (≠ "todas"), el pedido
-   * debe tener AL MENOS 1 ítem cuyo producto pertenezca a esa categoría.
-   */
-  const pedidosPorCategoria = useMemo(() => {
-    if (categoriaActiva === ALL_CATEGORIES) return pedidos;
-    return pedidos.filter((p) =>
-      p.items.some((it) => productoCategoria.get(it.productoId) === categoriaActiva),
-    );
-  }, [pedidos, categoriaActiva, productoCategoria]);
+  // Mapa productoId → Producto (para nombre + emoji en el indicador).
+  const productoById = useMemo(() => {
+    const map = new Map<string, Producto>();
+    for (const p of productos) map.set(p.id, p);
+    return map;
+  }, [productos]);
 
-  const byEstado = (estado: EstadoPedido | "todos") =>
-    estado === "todos"
-      ? pedidosPorCategoria
-      : pedidosPorCategoria.filter((p) => p.estado === estado);
+  const pedidosPorCategoria = useMemo(() => {
+    const map = new Map<string, Pedido[]>();
+    for (const cat of categoriasVisibles) map.set(cat.id, []);
+    for (const p of pedidos) {
+      const catsDelPedido = new Set<string>();
+      for (const it of p.items) {
+        const catId = productoCategoria.get(it.productoId);
+        if (catId) catsDelPedido.add(catId);
+      }
+      for (const catId of catsDelPedido) {
+        const list = map.get(catId);
+        if (list) list.push(p);
+      }
+    }
+    // Sort por número de pedido (más reciente primero)
+    for (const list of map.values()) {
+      list.sort((a, b) => (a.numero > b.numero ? -1 : 1));
+    }
+    return map;
+  }, [pedidos, categoriasVisibles, productoCategoria]);
+
+  const byEstado = (estado: EstadoPedido | "todos") => {
+    if (estado === "todos") return pedidos;
+    return pedidos.filter((p) => p.estado === estado);
+  };
+
+  /**
+   * Para un pedido dentro del collapsible de una categoría, devuelve
+   * la lista de OTRAS categorías (distintas a la actual) que también
+   * tienen хотя бы 1 item de este pedido. Para mostrar el indicator
+   * "también: Pizza, Empanadas" sin repetir la categoría actual.
+   */
+  const categoriasDelPedidoDistintasA = (
+    pedido: Pedido,
+    categoriaActualId: string,
+  ): Array<{ id: string; nombre: string; emoji?: string }> => {
+    const cats = new Set<string>();
+    for (const it of pedido.items) {
+      const catId = productoCategoria.get(it.productoId);
+      if (catId && catId !== categoriaActualId) cats.add(catId);
+    }
+    return categoriasVisibles
+      .filter((c) => cats.has(c.id))
+      .map((c) => ({ id: c.id, nombre: c.nombre, emoji: c.emoji }));
+  };
 
   function openDetail(p: Pedido) {
     setSelected(p);
     setDetailOpen(true);
   }
 
+  const total = pedidos.length;
+
   return (
     <>
       <ShellHeader
         title="Pedidos"
-        subtitle={`${pedidosPorCategoria.length} de ${pedidos.length} en total`}
+        subtitle={`${total} en total`}
         right={
           <ButtonLink href="/pedidos/nuevo" size="sm">
             <Plus className="size-3.5" />
@@ -93,16 +127,6 @@ export default function PedidosPage() {
         }
       />
       <main className="mx-auto max-w-6xl space-y-3 px-4 py-4">
-        <CategoryChips
-          categorias={categoriasVisibles.map((c) => ({
-            id: c.id,
-            nombre: c.nombre,
-            emoji: c.emoji,
-          }))}
-          activa={categoriaActiva}
-          onChange={setCategoriaActiva}
-        />
-
         <Tabs defaultValue="todos">
           <TabsList className="w-full overflow-x-auto justify-start h-auto p-1 scrollbar-none">
             {ESTADOS.map((e) => (
@@ -116,27 +140,47 @@ export default function PedidosPage() {
           </TabsList>
 
           {ESTADOS.map((e) => {
-            const lista = byEstado(e.value);
+            const pedidosEnEstado = byEstado(e.value);
             return (
               <TabsContent key={e.value} value={e.value} className="space-y-2 mt-4">
-                {lista.length === 0 ? (
+                {pedidosEnEstado.length === 0 ? (
                   <Card className="border-dashed">
                     <CardContent className="p-0">
                       <EmptyState
                         icon="clipboard"
                         title={`Sin pedidos ${e.label.toLowerCase()}`}
-                        description={
-                          categoriaActiva !== ALL_CATEGORIES
-                            ? "Probá cambiar el filtro de categoría"
-                            : "Cuando lleguen pedidos van a aparecer acá"
-                        }
+                        description="Cuando lleguen pedidos van a aparecer acá"
                       />
                     </CardContent>
                   </Card>
                 ) : (
-                  lista
-                    .sort((a, b) => (a.numero > b.numero ? -1 : 1))
-                    .map((p) => <PedidoRow key={p.id} pedido={p} onClick={() => openDetail(p)} />)
+                  categoriasVisibles.map((cat) => {
+                    // Filtrar los pedidos que también están en esta categoría.
+                    // (Map tiene TODOS los pedidos por categoría, pero solo
+                    //  nos importan los que pasan el filtro de estado.)
+                    const pedidosEnCategoria = (pedidosPorCategoria.get(cat.id) ?? [])
+                      .filter((p) => e.value === "todos" || p.estado === e.value);
+
+                    if (pedidosEnCategoria.length === 0) return null;
+
+                    return (
+                      <CollapsibleSection
+                        key={cat.id}
+                        emoji={cat.emoji}
+                        title={cat.nombre}
+                        count={pedidosEnCategoria.length}
+                      >
+                        {pedidosEnCategoria.map((p) => (
+                          <PedidoRow
+                            key={`${cat.id}-${p.id}`}
+                            pedido={p}
+                            onClick={() => openDetail(p)}
+                            otrasCategorias={categoriasDelPedidoDistintasA(p, cat.id)}
+                          />
+                        ))}
+                      </CollapsibleSection>
+                    );
+                  })
                 )}
               </TabsContent>
             );
@@ -149,7 +193,13 @@ export default function PedidosPage() {
   );
 }
 
-function PedidoRow({ pedido, onClick }: { pedido: Pedido; onClick: () => void }) {
+interface PedidoRowProps {
+  pedido: Pedido;
+  onClick: () => void;
+  otrasCategorias: Array<{ id: string; nombre: string; emoji?: string }>;
+}
+
+function PedidoRow({ pedido, onClick, otrasCategorias }: PedidoRowProps) {
   const badge = ESTADO_BADGE[pedido.estado];
   const firstImage = pedido.items.find((it) => it.imagenProducto)?.imagenProducto;
   return (
@@ -181,7 +231,7 @@ function PedidoRow({ pedido, onClick }: { pedido: Pedido; onClick: () => void })
                 </span>
               </div>
               <p className="mt-1 font-medium truncate">{pedido.nombreCliente}</p>
-              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
                 <span>{formatHora(pedido.hora)}</span>
                 <span>·</span>
                 <span>
@@ -199,6 +249,20 @@ function PedidoRow({ pedido, onClick }: { pedido: Pedido; onClick: () => void })
                     </>
                   )}
                 </span>
+                {otrasCategorias.length > 0 ? (
+                  <>
+                    <span>·</span>
+                    <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground/80">
+                      también:
+                      {otrasCategorias.slice(0, 3).map((c, i) => (
+                        <span key={c.id} className="inline-flex items-center gap-0.5">
+                          {i > 0 ? "," : ""} {c.emoji} {c.nombre}
+                        </span>
+                      ))}
+                      {otrasCategorias.length > 3 ? "…" : ""}
+                    </span>
+                  </>
+                ) : null}
               </p>
             </div>
             <div className="text-right shrink-0">
