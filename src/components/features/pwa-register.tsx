@@ -19,9 +19,12 @@ export function PwaRegister() {
 
     const register = async () => {
       try {
+        // Patrón oficial Next.js 16 + Turbopack (ver docs/01-app/02-guides/progressive-web-apps.mdx).
+        // NO usar extensión en el path — Turbopack resuelve y compila desde src/lib/.
+        // NO usar type: "module" — los service workers no son ES modules por default.
         const registration = await navigator.serviceWorker.register(
-          new URL("../lib/pwa.ts", import.meta.url),
-          { scope: "/", type: "module" },
+          new URL("../lib/pwa", import.meta.url),
+          { scope: "/", updateViaCache: "none" },
         );
         // Forzar update cada vez que se carga la app (en prod)
         registration.update().catch(() => {
