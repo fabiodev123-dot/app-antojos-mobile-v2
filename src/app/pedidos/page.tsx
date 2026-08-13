@@ -1,8 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, Truck, Store } from "lucide-react";
-import { pedidosRepository } from "@/lib/repositories";
+import {
+  categoriasRepository,
+  pedidosRepository,
+  productosRepository,
+} from "@/lib/repositories";
 import { useRepositoryList } from "@/hooks/use-repository";
 import { ShellHeader } from "@/components/layout/shell-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -10,6 +14,7 @@ import { ButtonLink } from "@/components/ui/button-link";
 import { ColorStripe } from "@/components/features/color-badge";
 import { PedidoDetailDialog } from "@/components/features/pedido-detail-dialog";
 import { EmptyState } from "@/components/features/empty-state";
+import { CategoryChips } from "@/components/features/category-chips";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatHora, formatPrecio } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -31,13 +36,44 @@ const ESTADO_BADGE: Record<EstadoPedido, { label: string; className: string }> =
   cancelado: { label: "Cancelado", className: "bg-destructive/15 text-destructive ring-1 ring-destructive/30" },
 };
 
+const ALL_CATEGORIES = "todas";
+
 export default function PedidosPage() {
   const pedidos = useRepositoryList(pedidosRepository);
+  const productos = useRepositoryList(productosRepository);
+  const categoriasVisibles = useRepositoryList(categoriasRepository).filter((c) => c.activo);
   const [detailOpen, setDetailOpen] = useState(false);
   const [selected, setSelected] = useState<Pedido | null>(null);
+  const [categoriaActiva, setCategoriaActiva] = useState<string>(ALL_CATEGORIES);
+
+  /**
+   * Mapa productoId → categoriaId, construido una sola vez por render.
+   * Usado para filtrar pedidos por categoría con un Set por categoría
+   * (O(1) lookup en lugar de O(n) por pedido).
+   */
+  const productoCategoria = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const p of productos) {
+      map.set(p.id, p.categoriaId);
+    }
+    return map;
+  }, [productos]);
+
+  /**
+   * Filtra los pedidos: si hay categoría activa (≠ "todas"), el pedido
+   * debe tener AL MENOS 1 ítem cuyo producto pertenezca a esa categoría.
+   */
+  const pedidosPorCategoria = useMemo(() => {
+    if (categoriaActiva === ALL_CATEGORIES) return pedidos;
+    return pedidos.filter((p) =>
+      p.items.some((it) => productoCategoria.get(it.productoId) === categoriaActiva),
+    );
+  }, [pedidos, categoriaActiva, productoCategoria]);
 
   const byEstado = (estado: EstadoPedido | "todos") =>
-    estado === "todos" ? pedidos : pedidos.filter((p) => p.estado === estado);
+    estado === "todos"
+      ? pedidosPorCategoria
+      : pedidosPorCategoria.filter((p) => p.estado === estado);
 
   function openDetail(p: Pedido) {
     setSelected(p);
@@ -48,7 +84,7 @@ export default function PedidosPage() {
     <>
       <ShellHeader
         title="Pedidos"
-        subtitle={`${pedidos.length} en total`}
+        subtitle={`${pedidosPorCategoria.length} de ${pedidos.length} en total`}
         right={
           <ButtonLink href="/pedidos/nuevo" size="sm">
             <Plus className="size-3.5" />
@@ -56,7 +92,17 @@ export default function PedidosPage() {
           </ButtonLink>
         }
       />
-      <main className="mx-auto max-w-6xl px-4 py-4">
+      <main className="mx-auto max-w-6xl space-y-3 px-4 py-4">
+        <CategoryChips
+          categorias={categoriasVisibles.map((c) => ({
+            id: c.id,
+            nombre: c.nombre,
+            emoji: c.emoji,
+          }))}
+          activa={categoriaActiva}
+          onChange={setCategoriaActiva}
+        />
+
         <Tabs defaultValue="todos">
           <TabsList className="w-full overflow-x-auto justify-start h-auto p-1 scrollbar-none">
             {ESTADOS.map((e) => (
@@ -69,25 +115,32 @@ export default function PedidosPage() {
             ))}
           </TabsList>
 
-          {ESTADOS.map((e) => (
-            <TabsContent key={e.value} value={e.value} className="space-y-2 mt-4">
-              {byEstado(e.value).length === 0 ? (
-                <Card className="border-dashed">
-                  <CardContent className="p-0">
-                    <EmptyState
-                      icon="clipboard"
-                      title={`Sin pedidos ${e.label.toLowerCase()}`}
-                      description="Cuando lleguen pedidos van a aparecer acá"
-                    />
-                  </CardContent>
-                </Card>
-              ) : (
-                byEstado(e.value)
-                  .sort((a, b) => (a.numero > b.numero ? -1 : 1))
-                  .map((p) => <PedidoRow key={p.id} pedido={p} onClick={() => openDetail(p)} />)
-              )}
-            </TabsContent>
-          ))}
+          {ESTADOS.map((e) => {
+            const lista = byEstado(e.value);
+            return (
+              <TabsContent key={e.value} value={e.value} className="space-y-2 mt-4">
+                {lista.length === 0 ? (
+                  <Card className="border-dashed">
+                    <CardContent className="p-0">
+                      <EmptyState
+                        icon="clipboard"
+                        title={`Sin pedidos ${e.label.toLowerCase()}`}
+                        description={
+                          categoriaActiva !== ALL_CATEGORIES
+                            ? "Probá cambiar el filtro de categoría"
+                            : "Cuando lleguen pedidos van a aparecer acá"
+                        }
+                      />
+                    </CardContent>
+                  </Card>
+                ) : (
+                  lista
+                    .sort((a, b) => (a.numero > b.numero ? -1 : 1))
+                    .map((p) => <PedidoRow key={p.id} pedido={p} onClick={() => openDetail(p)} />)
+                )}
+              </TabsContent>
+            );
+          })}
         </Tabs>
       </main>
 
