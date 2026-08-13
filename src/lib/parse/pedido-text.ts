@@ -161,18 +161,290 @@ const STOPWORDS = new Set([
 ]);
 
 /**
+ * Mapa de typos / variantes ortográficas → forma canónica.
+ *
+ * Se aplica ANTES de tokenizar para que el matching trabaje sobre el texto
+ * normalizado (sin que un typo rompa el match). Es deliberadamente chico:
+ * solo corregimos palabras que vemos seguido en mensajes de WhatsApp reales.
+ */
+const TYPO_MAP: Record<string, string> = {
+  // ─── Hamburguesas / burgers
+  "burguer": "burger",
+  "burguers": "burger",
+  "burgerrs": "burger",
+  "burgerr": "burger",
+  "boburguer": "burger",
+  "hamburgueza": "hamburguesa",
+  "hamburgesas": "hamburguesa",
+  "hamburgeza": "hamburguesa",
+  // ─── Pizzas / muzza
+  "musarella": "muzzarella",
+  "muzarela": "muzzarella",
+  "mussarella": "muzzarella",
+  "mussarela": "muzzarella",
+  "mussa": "muzza",
+  "musa": "muzza",
+  "mozarella": "muzzarella",
+  "mozarela": "muzzarella",
+  "mocarela": "muzzarella",
+  "muza": "muzza",
+  "pizzza": "pizza",
+  "piça": "pizza",
+  // ─── Empanadas
+  "empana": "empanada",
+  "empanadaas": "empanada",
+  // ─── Sándwiches / tortas
+  "sanduche": "sanguche",
+  "sanduches": "sanguche",
+  "sandwiche": "sanguche",
+  "sandwiches": "sanguche",
+  // ─── Alitos
+  "alitoss": "alito",
+  "alitros": "alito",
+  "alites": "alito",
+  // ─── Helados
+  "heladdo": "helado",
+  "helao": "helado",
+  "helasa": "helado",
+  // ─── Calabreza
+  "calabresa": "calabreza",
+  "calabrezas": "calabreza",
+};
+
+/**
+ * Singulariza plurales regulares del español: quita la 's' final si está
+ * precedida por consonante (excepto s, x, z, ce, ge — esos no pluralizan con -s).
+ * Sirve para que "hamburguesas" / "burgers" / "helados" matcheen con productos
+ * en singular ("hamburguesa" / "burger" / "helado") y viceversa.
+ */
+function singularize(token: string): string {
+  if (token.length <= 3) return token;
+  if (!token.endsWith("s")) return token;
+  const prev = token[token.length - 2];
+  // No singularizar si termina en -ss, -xs, -zs, -ces, -ges (ya singulares o irregulares)
+  if ("sxz".includes(prev)) return token;
+  if (token.endsWith("ces") || token.endsWith("ges")) return token;
+  return token.slice(0, -1);
+}
+
+/**
  * Sinónimos coloquiales → nombre de categoría. Usado cuando el usuario escribe
  * "sanguches" pero la categoría se llama "Sándwiches de Miga", etc.
+ *
+ * Las keys son la versión normalizada (lowercase, sin acentos, sin stopwords)
+ * del nombre de la categoría, igualadas con `tokenize(cat.nombre).join(" ")`.
  */
 const CATEGORY_SYNONYMS: Record<string, string[]> = {
-  "alitos": ["alitos", "alita", "alitas"],
-  "hambur pizza": ["hambur pizza", "hamburguesa pizza", "hamburguesapizza"],
-  "empanadas": ["empanada", "empanadas", "empanaditas", "empanada frita", "empanadas fritas"],
-  "tortas y sándwiches": ["torta", "tortas", "sanguche", "sanguches", "sandwich", "sandwiches", "miga", "migas", "triple", "triples", "torta de miga"],
-  "hamburguesas": ["burger", "burgers", "hamburguesa", "hamburguesas"],
-  "pizzas": ["pizza", "pizzas", "muzzarella", "calabreza"],
-  "combos": ["combo", "combos", "promo"],
-  "helados": ["helado", "helados", "grido", "torta helada"],
+  // ─── Alitos (cat_alitos)
+  alito: [
+    "alito", "alita", "alitas", "alitito",
+    "alitas bbq", "alitas crispy", "alitas picantes",
+    "wings", "wings bbq", "wing", "alita pollo", "alitas pollo",
+    "alita sola", "porcion alitas", "porcion alito",
+  ],
+  // ─── Hambur Pizza (cat_hambur_pizza) — categoría "híbrida" hamburguesa+pizza
+  "hambur pizza": [
+    "hambur pizza", "hamburguesa pizza", "hamburguesapizza",
+    "hamburpizza", "ham pizza", "hamur pizza",
+    "pizza hamburguesa", "pizza con carne", "pizza burger",
+    "pizza de carne",
+  ],
+  // ─── Empanadas (cat_empanadas)
+  empanada: [
+    "empanada", "empanadas", "empanaditas", "empanadon",
+    "empanada frita", "empanadas fritas", "emp frita", "empanada al horno",
+    "emp", "empanada de carne", "empanada jyq", "empanada de queso",
+    "empanada verdura", "empanada caprese",
+  ],
+  // ─── Tortas y Sándwiches (cat_tortas)
+  "torta sandwich": [
+    "torta", "tortas", "tortita",
+    "sanguche", "sanguches", "sanguchito",
+    "sandwich", "sandwiches", "sandwiche", "sanduches", "sanduche",
+    "miga", "migas", "torta miga", "torta de miga", "tortas de miga",
+    "triple", "triples", "triple de miga", "triples de miga",
+    "torta picada",
+  ],
+  // ─── Hamburguesas (cat_hamburguesas) — matchea si el input NO menciona "doble"/"casera"/etc.
+  hamburguesa: [
+    "hamburguesa", "hamburguesas", "burger", "burgers",
+    "burguer", "hambur", "hambu",
+    "burguers", "boburguer", "hamburgueza", "hamburgeza",
+    "burg", "casera burger",
+  ],
+  // ─── Pizzas (cat_pizzas) — matchea solo si NO hay topping específico (muzza/calabreza/etc.)
+  pizza: [
+    "pizza", "pizzas", "piz", "pizza al horno",
+    "pizza entera", "pizza de molde", "pizza de piedra",
+  ],
+  // ─── Combos (cat_combos)
+  combo: [
+    "combo", "combos", "promo", "promos", "promocion",
+    "combo hamburguesa", "combo sanguche", "combo papas",
+    "combo completo", "menu", "menu combo",
+  ],
+  // ─── Helados (cat_helados)
+  helado: [
+    "helado", "helados", "helasa", "helao", "heladito", "helada", "heladas",
+    "postre helado", "postrecito", "copita", "cucurucho", "cucu",
+    "paleta", "palito", "bombon", "bombones",
+    "torta helada", "turron", "turron helado",
+    "grido", "frisco", "familiar", "familiar helado",
+    "kilo helado", "1kg helado", "1/4 helado", "cuarto helado",
+    "medio kilo helado",
+  ],
+};
+
+/**
+ * Modificadores que apuntan a un PRODUCTO ESPECÍFICO dentro de una categoría
+ * (no a la categoría en general).
+ *
+ * Cada modificador tiene un peso:
+ *   - 1.0 = modificador fuerte / distintivo (ej: "doble", "casera")
+ *   - 0.5 = modificador débil / fallback (ej: "simple", "clasica")
+ *
+ * El scoring aplica:
+ *   1. +0.15 por cada hit de modificador (bonus)
+ *   2. -50% al score si en la misma categoría hay OTRO producto con más hits
+ *      (penalty para desambiguar)
+ *
+ * Esto resuelve casos como "burger doble" → Burgers Doble Todo (no Burgers).
+ */
+const PRODUCT_MODIFIERS: Record<string, Array<{ token: string; weight: number }>> = {
+  // ─── Hamburguesas
+  prod_burger: [
+    { token: "simple", weight: 0.5 },
+    { token: "clasica", weight: 0.5 },
+    { token: "normal", weight: 0.5 },
+    { token: "sola", weight: 0.5 },
+  ],
+  prod_burger_doble_todo: [
+    { token: "doble", weight: 1.0 },
+    { token: "todo", weight: 1.0 },
+    { token: "completisima", weight: 1.0 },
+    { token: "completa con todo", weight: 1.0 },
+  ],
+  prod_burgers_completa_caseras: [
+    { token: "casera", weight: 1.0 },
+    { token: "caseras", weight: 1.0 },
+    { token: "completas", weight: 1.0 },
+    { token: "completa caseras", weight: 1.0 },
+    { token: "completa casera", weight: 1.0 },
+    { token: "burguer casera", weight: 1.0 },
+    { token: "burger casera", weight: 1.0 },
+    { token: "hamburguesa casera", weight: 1.0 },
+  ],
+  // ─── Pizzas
+  prod_pizza_completa: [
+    { token: "muzza", weight: 1.0 },
+    { token: "muzzarella", weight: 1.0 },
+    { token: "mozzarella", weight: 1.0 },
+    { token: "jyq", weight: 1.0 },
+    { token: "j y q", weight: 1.0 },
+    { token: "jamon y queso", weight: 1.0 },
+    { token: "napolitana", weight: 0.7 },
+    { token: "napo", weight: 0.7 },
+  ],
+  prod_pizza_calabreza: [
+    { token: "calabreza", weight: 1.0 },
+    { token: "calabresa", weight: 1.0 },
+    { token: "cala", weight: 0.8 },
+    { token: "longaniza", weight: 1.0 },
+    { token: "calabrezas", weight: 1.0 },
+  ],
+  prod_pizza_mixta: [
+    { token: "mixta", weight: 1.0 },
+    { token: "mitad y mitad", weight: 1.0 },
+    { token: "1/2 y 1/2", weight: 1.0 },
+    { token: "media y media", weight: 1.0 },
+    { token: "salchicha alemana", weight: 1.0 },
+  ],
+  // ─── Empanadas (fritas vs horno)
+  prod_empanada_generica: [
+    { token: "empanada", weight: 0.3 }, // base, peso bajo para no ganar por defecto
+  ],
+  prod_emp_frita_carne: [
+    { token: "carne", weight: 1.0 },
+    { token: "de carne", weight: 1.0 },
+    { token: "frita carne", weight: 1.0 },
+  ],
+  prod_emp_frita_jyq: [
+    { token: "jyq", weight: 1.0 },
+    { token: "j y q", weight: 1.0 },
+    { token: "jamon y queso", weight: 1.0 },
+    { token: "jamon muzza", weight: 1.0 },
+  ],
+  prod_emp_frita_muzz_huevo: [
+    { token: "muzza y huevo", weight: 1.0 },
+    { token: "muzz y huevo", weight: 1.0 },
+    { token: "mozzarella y huevo", weight: 1.0 },
+    { token: "queso y huevo", weight: 0.8 },
+  ],
+  prod_emp_frita_caprese: [
+    { token: "caprese", weight: 1.0 },
+  ],
+  prod_emp_frita_milan_muzz: [
+    { token: "milanesa y muzza", weight: 1.0 },
+    { token: "milanesa y mozzarella", weight: 1.0 },
+    { token: "milanesa muzza", weight: 1.0 },
+  ],
+  prod_empanadas_horno_carne: [
+    { token: "al horno", weight: 1.0 },
+    { token: "horno", weight: 0.8 },
+    { token: "cuchillo", weight: 1.0 },
+  ],
+  // ─── Sándwiches / tortas
+  prod_torta_miga_picada: [
+    { token: "picada", weight: 1.0 },
+    { token: "con picada", weight: 1.0 },
+    { token: "sanguche", weight: 0.8 },
+    { token: "sanguches", weight: 0.8 },
+  ],
+  prod_triples_jyq: [
+    { token: "jyq", weight: 1.0 },
+    { token: "j y q", weight: 1.0 },
+    { token: "jamon y queso", weight: 1.0 },
+    { token: "sanguche", weight: 0.8 },
+    { token: "sanguches", weight: 0.8 },
+    { token: "sandwich", weight: 0.8 },
+  ],
+  prod_triples_jyq_b: [
+    { token: "miga jyq", weight: 1.0 },
+    { token: "miga j y q", weight: 1.0 },
+    { token: "sanguche", weight: 0.8 },
+    { token: "sanguches", weight: 0.8 },
+  ],
+  prod_triples_verdura: [
+    { token: "verdura", weight: 1.0 },
+    { token: "verduras", weight: 1.0 },
+    { token: "de verdura", weight: 1.0 },
+    { token: "sanguche", weight: 0.8 },
+    { token: "sanguches", weight: 0.8 },
+  ],
+  // ─── Alitos
+  prod_alitos_completos_a: [
+    { token: "porcion grande", weight: 0.5 },
+    { token: "alito grande", weight: 0.5 },
+  ],
+  prod_alitos_completos_b: [
+    { token: "porcion grande", weight: 0.5 },
+    { token: "alito grande", weight: 0.5 },
+  ],
+  // ─── Helados
+  prod_helados_grido: [
+    { token: "grido", weight: 1.0 },
+    { token: "variedad", weight: 1.0 },
+    { token: "variedades", weight: 1.0 },
+    { token: "torta", weight: 0.5 },
+    { token: "familiar", weight: 0.7 },
+    { token: "escoces", weight: 1.0 },
+  ],
+  // ─── Combos
+  prod_combo: [
+    { token: "combo", weight: 1.0 },
+    { token: "promo", weight: 1.0 },
+    { token: "combo completo", weight: 1.0 },
+  ],
 };
 
 const OBSERVATION_KEYWORDS = /^(sin|con|para|nota|obs|obs:|nota:)/i;
@@ -186,14 +458,52 @@ const SEPARATOR_REGEX = /\r?\n|;|\s*\+\s*|,|\s+y\s+(?=\w)/g;
  */
 const SEGMENT_GREETING = /^(?:hola|buen[oa]s?(?:\s+(?:d[ií]a|tardes|noches))?|para|entreg(?:ar(?:le)?|a))\s+[A-Z][\w\s]*?(?:[,;:\-]|\s+\d|\s*$)/i;
 
+/**
+ * Aplica el TYPO_MAP + singularización sobre los tokens.
+ * Orden: TYPO_MAP primero (más específico, ej: "burguer" → "burger"),
+ * después singularize (general, ej: "burgers" → "burger").
+ */
+function normalizeTokens(tokens: string[]): string[] {
+  return tokens.map((t) => {
+    const typoFixed = TYPO_MAP[t] ?? t;
+    return singularize(typoFixed);
+  });
+}
+
+/**
+ * Normaliza un texto completo:
+ *   1. lowercase + NFD (separa acentos) + strip diacríticos
+ *   2. Reemplaza typos multi-palabra del TYPO_MAP (ej: "media y media" → "media y media")
+ *   3. Aplica TYPO_MAP por token para palabras sueltas (ej: "musarela" → "muzzarella")
+ *   4. Limpia caracteres no alfanuméricos (excepto /)
+ *   5. Colapsa whitespace
+ */
 function normalize(input: string): string {
-  return input
+  let text = input
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  // 1) Reemplazo de typos multi-palabra (frases enteras)
+  // Ordenamos por longitud descendente para que "media y media" matchee antes que "media".
+  const multiWordEntries = Object.entries(TYPO_MAP)
+    .filter(([k]) => k.includes(" "))
+    .sort(([a], [b]) => b.length - a.length);
+  for (const [typo, canon] of multiWordEntries) {
+    text = text.replace(new RegExp(`\\b${escapeRegex(typo)}\\b`, "gi"), canon);
+  }
+
+  // 2) Limpieza final
+  text = text
     .replace(/[^\w\s/]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+  return text;
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function stripStopwords(tokens: string[]): string[] {
@@ -201,7 +511,9 @@ function stripStopwords(tokens: string[]): string[] {
 }
 
 function tokenize(input: string): string[] {
-  return stripStopwords(normalize(input).split(" ").filter(Boolean));
+  const normalized = normalize(input);
+  const raw = normalized.split(" ").filter(Boolean);
+  return stripStopwords(normalizeTokens(raw));
 }
 
 function parseQuantity(token: string): number | null {
@@ -261,6 +573,41 @@ interface ScoredMatch {
   product: Producto;
   score: number;
   reason: string;
+  /** Suma de pesos de modificadores que matchearon. Usado para desempate. */
+  modifierScore: number;
+}
+
+/**
+ * Cuenta cuántos modificadores del producto matchean en los tokens del input.
+ * Devuelve { hits, weight } donde:
+ *   - hits: cantidad de modificadores que matchearon
+ *   - weight: suma de los pesos de esos modificadores
+ *
+ * Soporta modificadores multi-token (ej: "media y media") además de single-token.
+ */
+function countModifierHits(
+  tokens: string[],
+  modifiers: Array<{ token: string; weight: number }>,
+): { hits: number; weight: number } {
+  let hits = 0;
+  let weight = 0;
+  for (const m of modifiers) {
+    const modTokens = m.token.split(" ");
+    if (modTokens.length === 1) {
+      if (tokens.includes(m.token)) {
+        hits++;
+        weight += m.weight;
+      }
+    } else {
+      // Multi-token: buscar la subsecuencia contigua en tokens
+      const joined = tokens.join(" ");
+      if (joined.includes(m.token)) {
+        hits++;
+        weight += m.weight;
+      }
+    }
+  }
+  return { hits, weight };
 }
 
 function scoreMatch(nameTokens: string[], product: Producto): ScoredMatch | null {
@@ -268,26 +615,104 @@ function scoreMatch(nameTokens: string[], product: Producto): ScoredMatch | null
   const productTokens = tokenize(product.nombre);
   if (productTokens.length === 0) return null;
 
-  // Match 1: todos los tokens del nombre aparecen en el producto (orden libre)
+  // Calcular score base por intersección de tokens
   const productSet = new Set(productTokens);
   const allHits = nameTokens.every((t) => productSet.has(t));
+  let baseScore = 0;
+  let baseReason = "";
+  let baseHits = nameTokens.filter((t) => productSet.has(t)).length;
+
   if (allHits && nameTokens.length >= 1) {
     // Bonus si el primer token matchea el primer token del producto
     const startsBonus = nameTokens[0] === productTokens[0] ? 0.15 : 0;
     const coverage = nameTokens.length / productTokens.length;
-    const score = Math.min(1, 0.85 + coverage * 0.1 + startsBonus);
-    return { product, score, reason: `cobertura completa (${nameTokens.length}/${productTokens.length})` };
+    let base = 0.85 + coverage * 0.1 + startsBonus;
+    // Penalizar match débil: 1 token de input que cae dentro de un producto largo.
+    // Ej: "sanguche" matchea "Combo: 2 Sandwiches + Burger + Papas" por cobertura
+    // completa, pero es un match genérico — bajamos el score para que el match
+    // por categoría (que prefiere Triples) pueda ganarle.
+    if (nameTokens.length === 1 && productTokens.length >= 4) {
+      base -= 0.25;
+    }
+    baseScore = Math.min(1, Math.max(0, base));
+    baseReason = `cobertura completa (${nameTokens.length}/${productTokens.length})`;
+  } else if (baseHits > 0) {
+    // Intersección parcial: recall-biased. El usuario a veces omite palabras de
+    // categoría ("sanguches de milanesa" vs "Miga de Milanesa" — matchea "milanesa").
+    const recall = baseHits / nameTokens.length;
+    const precision = baseHits / productTokens.length;
+    baseScore = recall * 0.85 + precision * 0.15;
+    baseReason = `intersección ${baseHits}/${nameTokens.length} (recall ${recall.toFixed(2)})`;
+  } else {
+    baseScore = 0;
   }
 
-  // Match 2: intersección parcial ponderada. Recall-biased porque el usuario a veces
-  // omite palabras de categoría ("sanguches de milanesa" vs "Miga de Milanesa" — matchea "milanesa").
-  const hits = nameTokens.filter((t) => productSet.has(t)).length;
-  if (hits === 0) return null;
-  const recall = hits / nameTokens.length;
-  const precision = hits / productTokens.length;
-  const score = recall * 0.75 + precision * 0.25;
-  if (score < 0.45) return null;
-  return { product, score, reason: `intersección ${hits}/${nameTokens.length} (recall ${recall.toFixed(2)})` };
+  // Bonus por modificadores de producto (ej: "muzza" apunta a Pizza Completa).
+  // Modificadores con peso alto (>0.7) tienen un boost fuerte porque son
+  // señales claras de intención del usuario. Peso bajo solo agrega un nudge.
+  //
+  // EXCLUSIVE BOOST: si el modifier matchea un token que NO está en el nombre
+  // del producto, es una señal MUY fuerte de intención (el usuario dijo algo
+  // específico que solo este producto tiene). Bonus extra 0.15 por cada uno.
+  const modifiers = PRODUCT_MODIFIERS[product.id] ?? [];
+  let modHits = 0;
+  let modWeight = 0;
+  let exclusiveHits = 0;
+  for (const m of modifiers) {
+    const modTokens = m.token.split(" ");
+    let matched = false;
+    if (modTokens.length === 1) {
+      if (nameTokens.includes(m.token)) {
+        matched = true;
+        if (!productSet.has(m.token)) exclusiveHits++;
+      }
+    } else {
+      const joined = nameTokens.join(" ");
+      if (joined.includes(m.token)) {
+        matched = true;
+        // Multi-token: chequeamos si TODOS los tokens están en productTokens
+        const allInProduct = modTokens.every((mt) => productSet.has(mt));
+        if (!allInProduct) exclusiveHits++;
+      }
+    }
+    if (matched) {
+      modHits++;
+      modWeight += m.weight;
+    }
+  }
+
+  let finalScore = baseScore;
+  let modReason = "";
+  if (modHits > 0) {
+    finalScore += 0.25 * modWeight;
+    if (exclusiveHits > 0) {
+      finalScore += 0.15 * exclusiveHits; // señal MUY fuerte
+      modReason = ` · modificador(+${modHits}, peso ${modWeight.toFixed(1)}, exclusivos ${exclusiveHits})`;
+    } else {
+      modReason = ` · modificador(+${modHits}, peso ${modWeight.toFixed(1)})`;
+    }
+    finalScore = Math.min(finalScore, 1);
+  }
+
+  // Si NO hubo match base (0 hits por nombre), el modifier puede salvarlo
+  // SI tiene peso fuerte (>= 0.7). Si no, descartamos.
+  if (baseHits === 0) {
+    if (modWeight < 0.7) return null;
+    // Score mínimo razonable cuando hay modifier fuerte pero 0 hits base.
+    // 0.65 es alto para superar matches "débiles" como Combo matcheando "sanguche"
+    // por cobertura completa (penalizado a 0.62).
+    finalScore = Math.max(finalScore, 0.65);
+  }
+
+  // Threshold check DESPUÉS de aplicar modifier bonus
+  if (finalScore < 0.45) return null;
+
+  return {
+    product,
+    score: finalScore,
+    reason: baseReason + modReason,
+    modifierScore: modWeight,
+  };
 }
 
 function matchProducto(
@@ -299,29 +724,73 @@ function matchProducto(
   const tokens = tokenize(name);
   if (tokens.length === 0) return null;
 
-  let best: ScoredMatch | null = null;
+  // Calculamos score para todos los productos activos que matcheen al menos algo.
+  const candidates: ScoredMatch[] = [];
   for (const product of productos) {
     if (!product.activo) continue;
     const candidate = scoreMatch(tokens, product);
     if (!candidate) continue;
-    if (!best || candidate.score > best.score) {
-      best = candidate;
-    }
+    candidates.push(candidate);
   }
-  if (!best || best.score < minScore) {
+
+  if (candidates.length === 0) {
     // Fallback: si no matcheó nada y la palabra es muy genérica (ej: "sanguches"),
     // intentar matchear contra el NOMBRE de la categoría y devolver el primer producto de esa categoría.
     const fallback = matchByCategory(tokens, productos, categorias);
     if (fallback) return fallback;
     return null;
   }
+
+  // Desempate intra-categoría por modificadores: si hay 2+ productos de la misma
+  // categoría, penalizamos (-50% al score) a los que tengan MENOS modificadores
+  // matcheando. Esto resuelve "burger doble" → Burgers Doble Todo (no Burgers).
+  const byCategory = new Map<string, ScoredMatch[]>();
+  for (const c of candidates) {
+    const cat = c.product.categoriaId;
+    if (!byCategory.has(cat)) byCategory.set(cat, []);
+    byCategory.get(cat)!.push(c);
+  }
+  for (const [, group] of byCategory) {
+    if (group.length < 2) continue;
+    const maxModWeight = Math.max(...group.map((c) => c.modifierScore));
+    for (const c of group) {
+      if (maxModWeight > 0 && c.modifierScore < maxModWeight) {
+        c.score *= 0.5;
+        c.reason += ` · desempate(-50%)`;
+      }
+    }
+  }
+
+  // Ordenar por score descendente. Tiebreakers en orden:
+  //   1. score (mayor gana)
+  //   2. modifierScore (mayor gana — preferencia por specificity)
+  //   3. cantidad de tokens en el nombre (menor gana — nombre más corto = más genérico = default)
+  candidates.sort((a, b) => {
+    if (Math.abs(b.score - a.score) > 0.001) return b.score - a.score;
+    if (Math.abs(b.modifierScore - a.modifierScore) > 0.001) return b.modifierScore - a.modifierScore;
+    const aTokens = tokenize(a.product.nombre).length;
+    const bTokens = tokenize(b.product.nombre).length;
+    return aTokens - bTokens; // nombre más corto gana como default
+  });
+
+  const best = candidates[0];
+  if (best.score < minScore) return null;
   return best;
 }
 
 /**
- * Matchea por categoría: si los tokens del nombre matchean el nombre de una categoría
- * (o algún sinónimo coloquial), devuelve el primer producto activo de esa categoría.
- * Útil cuando el usuario escribe solo "sanguches" → matchear contra "Sándwiches de Miga".
+ * Matchea por categoría: si al menos UN token del input matchea el nombre de
+ * una categoría (o algún sinónimo coloquial), devuelve el producto más
+ * apropiado de esa categoría.
+ *
+ * Selección del producto dentro de la categoría:
+ *   1. Preferir el que tenga más modificadores matcheando (más específico).
+ *   2. Si hay empate, preferir el de nombre más corto (más genérico = "default").
+ *
+ * Ejemplos:
+ *   "sanguches" → Triples JyQ (primero de cat_tortas, sin modificador)
+ *   "sanguches verdura" → Triples de Verdura (modifier "verdura" matchea)
+ *   "hamburguesa" → Burgers (el de nombre más corto de cat_hamburguesas)
  */
 function matchByCategory(
   tokens: string[],
@@ -332,20 +801,42 @@ function matchByCategory(
   for (const cat of categorias) {
     if (!cat.id) continue;
     const catTokens = new Set(tokenize(cat.nombre));
-    const synonyms = CATEGORY_SYNONYMS[tokenize(cat.nombre).join(" ")] ?? [];
+    const catKey = tokenize(cat.nombre).join(" ");
+    const synonyms = CATEGORY_SYNONYMS[catKey] ?? [];
     const synonymSet = new Set(synonyms);
 
-    const allMatch = tokens.every(
+    // Al menos UN token del input debe matchear categoría o sinónimo.
+    const matchCount = tokens.filter(
       (t) => catTokens.has(t) || synonymSet.has(t),
-    );
-    if (!allMatch) continue;
-    // Encontrar primer producto activo de esta categoría
-    const product = productos.find((p) => p.activo && p.categoriaId === cat.id);
-    if (!product) continue;
+    ).length;
+    if (matchCount === 0) continue;
+
+    const productsInCat = productos.filter((p) => p.activo && p.categoriaId === cat.id);
+    if (productsInCat.length === 0) continue;
+
+    // Encontrar el producto "mejor": más modificadores matcheando;
+    // empate → nombre más corto (default).
+    let bestProduct = productsInCat[0];
+    let bestModWeight = 0;
+    for (const p of productsInCat) {
+      const modifiers = PRODUCT_MODIFIERS[p.id] ?? [];
+      const { weight } = countModifierHits(tokens, modifiers);
+      if (weight > bestModWeight) {
+        bestModWeight = weight;
+        bestProduct = p;
+      } else if (weight === bestModWeight) {
+        // Empate: nombre más corto gana (default)
+        if (tokenize(p.nombre).length < tokenize(bestProduct.nombre).length) {
+          bestProduct = p;
+        }
+      }
+    }
+
     return {
-      product,
-      score: 0.6, // score medio para que pase el threshold
+      product: bestProduct,
+      score: 0.6 + bestModWeight * 0.2,
       reason: `categoría "${cat.nombre}"`,
+      modifierScore: bestModWeight,
     };
   }
   return null;
