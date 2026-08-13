@@ -15,14 +15,17 @@ import { createBrowserClient } from "@supabase/ssr";
 
 export function createSupabaseBrowserClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  // Soporta ambos formatos: legacy `anon` (JWT empieza con `eyJ`) o nuevo `publishable` (`sb_publishable_*`).
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-  if (!url || !anonKey) {
+  if (!url || !key) {
     throw new Error(
-      "[supabase/client] Faltan env vars: NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY. " +
+      "[supabase/client] Faltan env vars: NEXT_PUBLIC_SUPABASE_URL + (NEXT_PUBLIC_SUPABASE_ANON_KEY o NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY). " +
         "Configuralas en .env.local (dev) o en Vercel → Settings → Environment Variables (prod).",
     );
   }
 
-  return createBrowserClient(url, anonKey);
+  return createBrowserClient(url, key);
 }
