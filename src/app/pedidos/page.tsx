@@ -42,8 +42,8 @@ const ESTADO_BADGE: Record<EstadoPedido, { label: string; className: string }> =
 const OTROS_CAT_ID = "__otros__";
 const OTROS_CAT: { id: string; nombre: string; emoji: string } = {
   id: OTROS_CAT_ID,
-  nombre: "Otros (sin categoría)",
-  emoji: "❓",
+  nombre: "Otros",
+  emoji: "🍽️",
 };
 
 export default function PedidosPage() {
