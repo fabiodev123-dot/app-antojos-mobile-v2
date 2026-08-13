@@ -1,19 +1,20 @@
-/// <reference lib="webworker" />
-/**
- * Service Worker de Antojos (Next.js 16 compila este archivo con Turbopack).
+/* Service Worker Antojos — estrategia network-first con cache fallback.
  *
- * Estrategia: network-first con fallback a cache.
- * - La primera vez carga todo de la red y guarda una copia en cache.
- * - Si no hay red (celular en el local con señal mala), sirve desde cache.
- *
- * NO cacheamos nada del storage de localStorage — eso es del usuario, no de
- * la red. Solo cacheamos assets estáticos y rutas navegadas.
+ * Ubicado en /public/sw.js (no en src/lib/) porque Next.js 16 + Turbopack
+ * no compila archivos .ts como service workers en producción — ver issue.
+ * El patrón src/lib/*.ts funciona en Webpack pero no en Turbopack builds.
  */
 
-declare const self: ServiceWorkerGlobalScope;
-
 const CACHE_NAME = "antojos-v1";
-const APP_SHELL = ["/", "/pedidos", "/productos", "/stock", "/cierre", "/clientes"];
+const APP_SHELL = [
+  "/",
+  "/pedidos",
+  "/productos",
+  "/stock",
+  "/cierre",
+  "/clientes",
+  "/manifest.webmanifest",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -31,7 +32,9 @@ self.addEventListener("activate", (event) => {
     (async () => {
       const keys = await caches.keys();
       await Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)),
+        keys
+          .filter((key) => key !== CACHE_NAME)
+          .map((key) => caches.delete(key)),
       );
       await self.clients.claim();
     })(),
@@ -43,7 +46,7 @@ self.addEventListener("fetch", (event) => {
   if (request.method !== "GET") return;
 
   const url = new URL(request.url);
-  // Solo same-origin. Terceros (fonts, imágenes de Google, etc.) los maneja el browser.
+  // Solo same-origin. Terceros (fonts, imágenes externas) los maneja el browser.
   if (url.origin !== self.location.origin) return;
 
   // Network-first, cache fallback
@@ -54,7 +57,7 @@ self.addEventListener("fetch", (event) => {
         // Solo cachear respuestas válidas (200/206)
         if (response.ok) {
           const cache = await caches.open(CACHE_NAME);
-          // Clone porque la respuesta original se consume
+          // Clone porque la respuesta original se consume al retornar
           cache.put(request, response.clone()).catch(() => {
             // Ignorar errores de quota — no es crítico
           });
@@ -69,5 +72,3 @@ self.addEventListener("fetch", (event) => {
     })(),
   );
 });
-
-export {};
