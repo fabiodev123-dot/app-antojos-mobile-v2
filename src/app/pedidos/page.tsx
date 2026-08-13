@@ -36,6 +36,16 @@ const ESTADO_BADGE: Record<EstadoPedido, { label: string; className: string }> =
   cancelado: { label: "Cancelado", className: "bg-destructive/15 text-destructive ring-1 ring-destructive/30" },
 };
 
+// Categoría "ficticia" para pedidos que NO matchean con ninguna categoría activa
+// (productos huérfanos en la DB). La agrupamos en "Otros" para que no se pierda
+// el pedido y el dueño sepa que hay un item sin categorizar.
+const OTROS_CAT_ID = "__otros__";
+const OTROS_CAT: { id: string; nombre: string; emoji: string } = {
+  id: OTROS_CAT_ID,
+  nombre: "Otros (sin categoría)",
+  emoji: "❓",
+};
+
 export default function PedidosPage() {
   const pedidos = useRepositoryList(pedidosRepository);
   const productos = useRepositoryList(productosRepository);
@@ -48,71 +58,82 @@ export default function PedidosPage() {
   // Mapa productoId → categoriaId (O(1) lookup por cada item del pedido).
   const productoCategoria = useMemo(() => {
     const map = new Map<string, string>();
-    for (const p of productos) {
-      map.set(p.id, p.categoriaId);
-    }
+    for (const p of productos) map.set(p.id, p.categoriaId);
     return map;
   }, [productos]);
 
-  // Mapa productoId → Producto (para nombre + emoji en el indicador).
+  // Mapa productoId → Producto (para mostrar nombre + emoji en el indicador).
   const productoById = useMemo(() => {
     const map = new Map<string, Producto>();
     for (const p of productos) map.set(p.id, p);
     return map;
   }, [productos]);
 
-  const pedidosPorCategoria = useMemo(() => {
-    const map = new Map<string, Pedido[]>();
-    for (const cat of categoriasVisibles) map.set(cat.id, []);
-    for (const p of pedidos) {
-      const catsDelPedido = new Set<string>();
-      for (const it of p.items) {
-        const catId = productoCategoria.get(it.productoId);
-        if (catId) catsDelPedido.add(catId);
-      }
-      for (const catId of catsDelPedido) {
-        const list = map.get(catId);
-        if (list) list.push(p);
-      }
-    }
-    // Sort por número de pedido (más reciente primero)
-    for (const list of map.values()) {
-      list.sort((a, b) => (a.numero > b.numero ? -1 : 1));
-    }
-    return map;
+  // Categorías que agruparemos en cada tab. Incluye la "categoría" OTROS
+  // solo si AL MENOS 1 pedido tiene items cuyo producto no existe en `productoCategoria`.
+  const categoriasParaTabs = useMemo(() => {
+    const hayPedidosSinCategoria = pedidos.some(
+      (p) => !p.items.every((it) => productoCategoria.has(it.productoId)),
+    );
+    return hayPedidosSinCategoria ? [...categoriasVisibles, OTROS_CAT] : categoriasVisibles;
   }, [pedidos, categoriasVisibles, productoCategoria]);
 
-  const byEstado = (estado: EstadoPedido | "todos") => {
-    if (estado === "todos") return pedidos;
-    return pedidos.filter((p) => p.estado === estado);
+  // Para una categoría, devuelve los pedidos (que pasan el filtro de estado)
+  // que contienen хотя бы 1 item de esa categoría.
+  const pedidosEnCategoriaYEstado = (
+    cat: { id: string },
+    estado: EstadoPedido | "todos",
+  ): Pedido[] => {
+    const out: Pedido[] = [];
+    for (const p of pedidos) {
+      if (estado !== "todos" && p.estado !== estado) continue;
+      let match = false;
+      if (cat.id === OTROS_CAT_ID) {
+        match = !p.items.every((it) => productoCategoria.has(it.productoId));
+      } else {
+        for (const it of p.items) {
+          if (productoCategoria.get(it.productoId) === cat.id) {
+            match = true;
+            break;
+          }
+        }
+      }
+      if (match) out.push(p);
+    }
+    out.sort((a, b) => (a.numero > b.numero ? -1 : 1));
+    return out;
   };
 
-  /**
-   * Para un pedido dentro del collapsible de una categoría, devuelve
-   * la lista de OTRAS categorías (distintas a la actual) que también
-   * tienen хотя бы 1 item de este pedido. Para mostrar el indicator
-   * "también: Pizza, Empanadas" sin repetir la categoría actual.
-   */
-  const categoriasDelPedidoDistintasA = (
+  // Para un pedido en el collapsible de una categoría, devuelve las OTRAS
+  // categorías (distintas a la actual) que también tienen хотя бы 1 item.
+  const otrasCategoriasDelPedido = (
     pedido: Pedido,
     categoriaActualId: string,
   ): Array<{ id: string; nombre: string; emoji?: string }> => {
+    if (categoriaActualId === OTROS_CAT_ID) return [];
     const cats = new Set<string>();
     for (const it of pedido.items) {
       const catId = productoCategoria.get(it.productoId);
       if (catId && catId !== categoriaActualId) cats.add(catId);
     }
-    return categoriasVisibles
-      .filter((c) => cats.has(c.id))
-      .map((c) => ({ id: c.id, nombre: c.nombre, emoji: c.emoji }));
+    return [
+      ...categoriasVisibles
+        .filter((c) => cats.has(c.id))
+        .map((c) => ({ id: c.id, nombre: c.nombre, emoji: c.emoji })),
+      // Si tiene items sin categoría, también lo mencionamos
+      ...(pedido.items.some((it) => !productoCategoria.has(it.productoId))
+        ? [OTROS_CAT]
+        : []),
+    ];
   };
+
+  // Cuenta total de pedidos para el header (no afectada por estado).
+  const total = pedidos.length;
 
   function openDetail(p: Pedido) {
     setSelected(p);
     setDetailOpen(true);
   }
-
-  const total = pedidos.length;
 
   return (
     <>
@@ -133,14 +154,19 @@ export default function PedidosPage() {
               <TabsTrigger key={e.value} value={e.value} className="shrink-0">
                 {e.label}
                 {e.value !== "todos" ? (
-                  <span className="ml-1.5 text-[10px] opacity-60 tabular-nums">{byEstado(e.value).length}</span>
+                  <span className="ml-1.5 text-[10px] opacity-60 tabular-nums">
+                    {pedidos.filter((p) => p.estado === e.value).length}
+                  </span>
                 ) : null}
               </TabsTrigger>
             ))}
           </TabsList>
 
           {ESTADOS.map((e) => {
-            const pedidosEnEstado = byEstado(e.value);
+            const pedidosEnEstado = pedidos.filter(
+              (p) => e.value === "todos" || p.estado === e.value,
+            );
+
             return (
               <TabsContent key={e.value} value={e.value} className="space-y-2 mt-4">
                 {pedidosEnEstado.length === 0 ? (
@@ -154,13 +180,11 @@ export default function PedidosPage() {
                     </CardContent>
                   </Card>
                 ) : (
-                  categoriasVisibles.map((cat) => {
-                    // Filtrar los pedidos que también están en esta categoría.
-                    // (Map tiene TODOS los pedidos por categoría, pero solo
-                    //  nos importan los que pasan el filtro de estado.)
-                    const pedidosEnCategoria = (pedidosPorCategoria.get(cat.id) ?? [])
-                      .filter((p) => e.value === "todos" || p.estado === e.value);
-
+                  categoriasParaTabs.map((cat) => {
+                    const pedidosEnCategoria = pedidosEnCategoriaYEstado(
+                      { id: cat.id },
+                      e.value,
+                    );
                     if (pedidosEnCategoria.length === 0) return null;
 
                     return (
@@ -175,7 +199,7 @@ export default function PedidosPage() {
                             key={`${cat.id}-${p.id}`}
                             pedido={p}
                             onClick={() => openDetail(p)}
-                            otrasCategorias={categoriasDelPedidoDistintasA(p, cat.id)}
+                            otrasCategorias={otrasCategoriasDelPedido(p, cat.id)}
                           />
                         ))}
                       </CollapsibleSection>
