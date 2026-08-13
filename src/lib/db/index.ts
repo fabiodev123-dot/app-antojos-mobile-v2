@@ -39,12 +39,6 @@ function getClient(): ReturnType<typeof postgres> {
         "Si querés trabajar solo con localStorage, no uses los repos de Supabase.",
     );
   }
-  // Diagnostic: log masked version of URL so we can verify what Vercel sees.
-  // eslint-disable-next-line no-console
-  console.log(
-    "[db] DATABASE_URL (masked):",
-    connectionString.replace(/(:)([^:@]+)(@)/, "$1***$3"),
-  );
   const client = postgres(connectionString, {
     // Pool chico para serverless. Vercel escala horizontal con funciones efímeras;
     // cada función abre ~1 conexión.

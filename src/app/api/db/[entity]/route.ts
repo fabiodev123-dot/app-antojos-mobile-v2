@@ -88,12 +88,7 @@ export async function GET(
     return NextResponse.json(rows);
   } catch (err) {
     // eslint-disable-next-line no-console
-    console.error(
-      "[api/db/[entity]] GET error. DATABASE_URL (masked):",
-      (process.env.DATABASE_URL ?? "").replace(/(:)([^:@]+)(@)/, "$1***$3"),
-      "| err:",
-      err,
-    );
+    console.error("[api/db/[entity]] GET error:", err);
     return NextResponse.json(
       { error: "Internal error", detail: err instanceof Error ? err.message : String(err) },
       { status: 500 },
