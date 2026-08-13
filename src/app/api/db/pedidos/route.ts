@@ -16,16 +16,11 @@ import { db } from "@/lib/db";
 import { pedidos as pedidosTable, pedidoItems as pedidoItemsTable } from "@/lib/db/schema";
 import { newId, nowIso } from "@/lib/repositories/types";
 
-export async function GET(
-  req: NextRequest,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  { params }: { params: Promise<any> },
-) {
-  // entity debe ser "pedidos" — si no, 404
-  const { entity } = await params;
-  if (entity !== "pedidos") {
-    return NextResponse.json({ error: `Unknown entity: ${entity}` }, { status: 404 });
-  }
+export async function GET(req: NextRequest) {
+  // Esta ruta es estática (/api/db/pedidos), no tiene segmentos dinámicos.
+  // No destructuramos `params` porque viene como `undefined` en Next.js 16 +
+  // Turbopack cuando el path es 100% estático, y eso tira "Cannot destructure
+  // property 'entity' of undefined".
 
   const id = req.nextUrl.searchParams.get("id");
   if (id) {
@@ -55,15 +50,8 @@ export async function GET(
   );
 }
 
-export async function POST(
-  req: NextRequest,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  { params }: { params: Promise<any> },
-) {
-  const { entity } = await params;
-  if (entity !== "pedidos") {
-    return NextResponse.json({ error: `Unknown entity: ${entity}` }, { status: 404 });
-  }
+export async function POST(req: NextRequest) {
+  // Esta ruta es estática, no destructuramos params (ver GET más arriba).
 
   const body = await req.json();
   const { items = [], ...pedidoFields } = body;
@@ -95,15 +83,8 @@ export async function POST(
   return NextResponse.json({ ...pedidoRow, items: itemsRows }, { status: 201 });
 }
 
-export async function PATCH(
-  req: NextRequest,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  { params }: { params: Promise<any> },
-) {
-  const { entity } = await params;
-  if (entity !== "pedidos") {
-    return NextResponse.json({ error: `Unknown entity: ${entity}` }, { status: 404 });
-  }
+export async function PATCH(req: NextRequest) {
+  // Esta ruta es estática, no destructuramos params (ver GET más arriba).
 
   const id = req.nextUrl.searchParams.get("id");
   if (!id) {
@@ -123,15 +104,8 @@ export async function PATCH(
   return NextResponse.json({ ok: true });
 }
 
-export async function DELETE(
-  req: NextRequest,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  { params }: { params: Promise<any> },
-) {
-  const { entity } = await params;
-  if (entity !== "pedidos") {
-    return NextResponse.json({ error: `Unknown entity: ${entity}` }, { status: 404 });
-  }
+export async function DELETE(req: NextRequest) {
+  // Esta ruta es estática, no destructuramos params (ver GET más arriba).
 
   const id = req.nextUrl.searchParams.get("id");
   if (!id) {
