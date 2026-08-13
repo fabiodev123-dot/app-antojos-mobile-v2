@@ -67,24 +67,33 @@ export async function GET(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   { params }: { params: Promise<any> },
 ) {
-  const { entity } = await params;
-  const table = getEntity(entity);
-  if (!table) {
-    return NextResponse.json({ error: `Unknown entity: ${entity}` }, { status: 404 });
-  }
+  try {
+    const { entity } = await params;
+    const table = getEntity(entity);
+    if (!table) {
+      return NextResponse.json({ error: `Unknown entity: ${entity}` }, { status: 404 });
+    }
 
-  const id = req.nextUrl.searchParams.get("id");
-  if (id) {
+    const id = req.nextUrl.searchParams.get("id");
+    if (id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rows = await db.select().from(table as any).where(eq((table as any).id, id)).limit(1);
+      const row = rows[0];
+      if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
+      return NextResponse.json(row);
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows = await db.select().from(table as any).where(eq((table as any).id, id)).limit(1);
-    const row = rows[0];
-    if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json(row);
+    const rows = await db.select().from(table as any);
+    return NextResponse.json(rows);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error("[api/db/[entity]] GET error:", err);
+    return NextResponse.json(
+      { error: "Internal error", detail: err instanceof Error ? err.message : String(err) },
+      { status: 500 },
+    );
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rows = await db.select().from(table as any);
-  return NextResponse.json(rows);
 }
 
 export async function POST(
