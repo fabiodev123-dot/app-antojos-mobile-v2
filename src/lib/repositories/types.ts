@@ -12,6 +12,21 @@ export interface Repository<T extends BaseEntity> {
   replaceAll(items: T[]): void;
 }
 
+/**
+ * Extensión opcional del Repository para backends async (Supabase, REST, etc).
+ * Si el repo la implementa, `useRepositoryList` la usa para:
+ * - Disparar `ensureLoaded()` en mount (primer fetch async)
+ * - Suscribirse a cambios via `subscribe()` + `getVersion()` (reactividad)
+ *
+ * Si el repo NO la implementa, el hook asume que el repo es sync y completamente
+ * reactivo por sí mismo (caso localStorage, que ya tiene su propio bus).
+ */
+export interface ReactiveRepository<T extends BaseEntity> extends Repository<T> {
+  ensureLoaded?(): Promise<void>;
+  subscribe?(onChange: () => void): () => void;
+  getVersion?(): number;
+}
+
 export function newId(prefix?: string): string {
   const rand =
     typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
