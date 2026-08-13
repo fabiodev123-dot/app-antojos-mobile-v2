@@ -2,29 +2,26 @@
  * Repository de Supabase — implementación con cache local + fetch async.
  *
  * Estrategia: stale-while-revalidate
- * - Mantiene un cache en memoria (Map<id, T>) que actúa como fuente de verdad
- *   para los snapshots síncronos (`list()`, `get()`).
- * - Al primer acceso dispara un fetch async que hidrata el cache desde la DB.
- * - Las mutaciones (`create/update/delete`) son async pero actualizan el cache
- *   local optimistamente antes de hacer round-trip a la DB.
- * - El hook `useRepositoryList` llama `ensureLoaded()` en mount para disparar
- *   la carga inicial si todavía no se hizo.
+ * - Mantiene cache en memoria (`Map<id, T>`) que sirve los snapshots síncronos.
+ * - Al primer acceso dispara un fetch async a `/api/db/{entity}` que hidrata el cache.
+ * - Las mutaciones (`create/update/delete`) son async (fetch en background) pero
+ *   actualizan el cache local optimistamente — UI ve la entidad YA.
+ * - Si la mutación falla, rollback del cache + re-render.
  *
- * Esto preserva la API SÍNCRONA del repo (CRÍTICO — el frontend asume sync
- * por el `useSyncExternalStore` con snapshot sync) mientras permite Supabase
- * async por debajo.
- *
- * Para tablas con relaciones 1:N (pedidos) hay un repo específico.
+ * IMPORTANTE: este repo NO importa `postgres` ni `db` — solo fetch a las API
+ * routes que SÍ son server-side. Esto mantiene el bundle del cliente libre de
+ * módulos Node (fs/net/tls).
  */
-import { db } from "@/lib/db";
-import { eq } from "drizzle-orm";
 import { newId, nowIso } from "./types";
-import type { CreateInput, Repository, UpdateInput } from "./types";
 import type { BaseEntity } from "@/lib/types";
+import type {
+  CreateInput,
+  Repository,
+  UpdateInput,
+} from "./types";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BUS DE VERSIONES — patrón idéntico al reactive-repository.ts (localStorage).
-// Permite que useSyncExternalStore detecte cambios y re-renderice.
+// BUS DE VERSIONES (idéntico al patrón del reactive-repository local).
 // ─────────────────────────────────────────────────────────────────────────────
 
 declare global {
@@ -53,12 +50,10 @@ export function bumpVersion(repo: unknown): void {
   listeners().forEach((l) => l());
 }
 
-/** Versión de un repo (para useSyncExternalStore cache). */
 export function getSupabaseRepoVersion(repo: unknown): number {
   return versions().get(repo) ?? 0;
 }
 
-/** Subscribe a cambios de cualquier repo Supabase. */
 export function subscribeSupabaseRepos(onChange: () => void): () => void {
   listeners().add(onChange);
   return () => {
@@ -70,27 +65,9 @@ export function subscribeSupabaseRepos(onChange: () => void): () => void {
 // MAPPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function dbRowToFrontend<T extends BaseEntity>(row: Record<string, unknown>): T {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(row)) {
-    if (v instanceof Date) {
-      out[k] = v.toISOString();
-    } else if (v === null) {
-      out[k] = undefined;
-    } else {
-      out[k] = v;
-    }
-  }
-  return out as T;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// REPOSITORY GENÉRICO
-// ─────────────────────────────────────────────────────────────────────────────
-
 export interface RepositoryState<T extends BaseEntity> {
   byId: Map<string, T>;
-  order: string[]; // ids en orden de insertion (createdAt asc)
+  order: string[];
   loaded: boolean;
   loading: Promise<void> | null;
 }
@@ -111,43 +88,109 @@ function getState<T extends BaseEntity>(repo: object): RepositoryState<T> {
   return s as RepositoryState<T>;
 }
 
+export function dbRowToFrontend<T extends BaseEntity>(row: Record<string, unknown>): T {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) {
+    if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}T/.test(v)) {
+      // ISO date string — mantener como string
+      out[k] = v;
+    } else if (v === null) {
+      out[k] = undefined;
+    } else {
+      out[k] = v;
+    }
+  }
+  return out as T;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FETCH HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function apiGet<T>(entity: string, id?: string): Promise<T> {
+  const url = id
+    ? `/api/db/${entity}?id=${encodeURIComponent(id)}`
+    : `/api/db/${entity}`;
+  const res = await fetch(url, { credentials: "same-origin" });
+  if (!res.ok) throw new Error(`[supabase-repo] GET ${entity} ${id ?? "list"} failed: ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+async function apiPost<T>(entity: string, body: unknown): Promise<T> {
+  const res = await fetch(`/api/db/${entity}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`[supabase-repo] POST ${entity} failed: ${res.status}`);
+  return res.json() as Promise<T>;
+}
+
+async function apiPatch(entity: string, id: string, body: unknown): Promise<void> {
+  const res = await fetch(`/api/db/${entity}?id=${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`[supabase-repo] PATCH ${entity} ${id} failed: ${res.status}`);
+}
+
+async function apiDelete(entity: string, id: string): Promise<void> {
+  const res = await fetch(`/api/db/${entity}?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    credentials: "same-origin",
+  });
+  if (!res.ok) throw new Error(`[supabase-repo] DELETE ${entity} ${id} failed: ${res.status}`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REPOSITORY GENÉRICO
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
- * Crea un repository de Supabase con cache local + fetch async.
+ * Crea un repository de Supabase con cache local + fetch a API routes.
  *
- * @param table — tabla Drizzle (pgTable result)
- * @param orderByColumn — columna Drizzle para ordenar el resultado (default: createdAt asc)
+ * @param entity — nombre de la entidad (path segment de la API route), ej "productos"
+ * @param orderByKey — campo del objeto por el cual ordenar (default: "createdAt")
  */
 export function createSupabaseRepository<
   T extends BaseEntity,
-  TTable extends { id: unknown; createdAt: unknown },
 >(
-  table: TTable,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  orderByColumn?: any,
+  entity: string,
+  orderByKey: keyof T = "createdAt" as keyof T,
 ): Repository<T> & {
-  /** Dispara el fetch inicial si todavía no se cargó. Idempotente. */
   ensureLoaded(): Promise<void>;
-  /** Trae la versión actual (para useSyncExternalStore). */
   getVersion(): number;
+  subscribe(onChange: () => void): () => void;
 } {
-  const state = getState<T>(table);
+  const REPO_KEY = { entity } as const;
+  const state = getState<T>(REPO_KEY);
+
+  function sortOrder(): void {
+    state.order.sort((a, b) => {
+      const aa = state.byId.get(a);
+      const bb = state.byId.get(b);
+      if (!aa || !bb) return 0;
+      const va = (aa as Record<string, unknown>)[orderByKey as string];
+      const vb = (bb as Record<string, unknown>)[orderByKey as string];
+      return String(va ?? "").localeCompare(String(vb ?? ""));
+    });
+  }
 
   async function fetchAll(): Promise<void> {
-    const rows = await db
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .select()
-      .from(table as any)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .orderBy(orderByColumn ?? (table as any).createdAt);
+    const rows = await apiGet<Array<Record<string, unknown>>>(entity);
     state.byId.clear();
     state.order = [];
     for (const row of rows) {
-      const entity = dbRowToFrontend<T>(row as Record<string, unknown>);
-      state.byId.set(entity.id, entity);
-      state.order.push(entity.id);
+      const entityRow = dbRowToFrontend<T>(row);
+      state.byId.set(entityRow.id, entityRow);
+      state.order.push(entityRow.id);
     }
+    sortOrder();
     state.loaded = true;
-    bumpVersion(table);
+    bumpVersion(REPO_KEY);
   }
 
   async function ensureLoaded(): Promise<void> {
@@ -161,7 +204,6 @@ export function createSupabaseRepository<
 
   return {
     list() {
-      // Sync — devuelve lo que haya en cache (puede ser [] antes del primer fetch).
       return state.order
         .map((id) => state.byId.get(id))
         .filter((x): x is T => x !== undefined);
@@ -173,29 +215,27 @@ export function createSupabaseRepository<
 
     create(data) {
       const now = nowIso();
-      const entity = {
+      const entityRow = {
         ...(data as object),
         id: newId(),
         createdAt: now,
         updatedAt: now,
       } as T;
-      // Update cache optimistamente (sync) — UI ve la entidad YA.
-      state.byId.set(entity.id, entity);
-      state.order.push(entity.id);
-      bumpVersion(table);
-      // Persist async. Si falla, removemos del cache (rollback optimista).
+      state.byId.set(entityRow.id, entityRow);
+      state.order.push(entityRow.id);
+      sortOrder();
+      bumpVersion(REPO_KEY);
       void (async () => {
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await db.insert(table as any).values(entity as any);
+          await apiPost(entity, data);
         } catch (err) {
-          state.byId.delete(entity.id);
-          state.order = state.order.filter((x) => x !== entity.id);
-          bumpVersion(table);
+          state.byId.delete(entityRow.id);
+          state.order = state.order.filter((x) => x !== entityRow.id);
+          bumpVersion(REPO_KEY);
           throw err;
         }
       })();
-      return entity;
+      return entityRow;
     },
 
     update(id, data) {
@@ -213,21 +253,15 @@ export function createSupabaseRepository<
         updatedAt: nowIso(),
       } as T;
       state.byId.set(id, updated);
-      bumpVersion(table);
+      sortOrder();
+      bumpVersion(REPO_KEY);
       void (async () => {
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await db
-            .update(table as any)
-            .set({ ...(data as object), updatedAt: updated.updatedAt } as Record<
-              string,
-              unknown
-            >)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            .where(eq((table as any).id, id));
+          await apiPatch(entity, id, data);
         } catch (err) {
-          state.byId.set(id, current); // rollback
-          bumpVersion(table);
+          state.byId.set(id, current);
+          sortOrder();
+          bumpVersion(REPO_KEY);
           throw err;
         }
       })();
@@ -239,16 +273,15 @@ export function createSupabaseRepository<
       if (!existing) return false;
       state.byId.delete(id);
       state.order = state.order.filter((x) => x !== id);
-      bumpVersion(table);
+      bumpVersion(REPO_KEY);
       void (async () => {
         try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await db.delete(table as any).where(eq((table as any).id, id));
+          await apiDelete(entity, id);
         } catch (err) {
-          // rollback
           state.byId.set(id, existing);
           state.order.push(id);
-          bumpVersion(table);
+          sortOrder();
+          bumpVersion(REPO_KEY);
           throw err;
         }
       })();
@@ -256,39 +289,20 @@ export function createSupabaseRepository<
     },
 
     replaceAll(items) {
-      // Sync wipe
-      state.byId.clear();
-      state.order = [];
-      const now = nowIso();
-      const rows = items.map((item) => ({
-        ...item,
-        createdAt: item.createdAt ?? now,
-        updatedAt: now,
-      }));
-      for (const r of rows) {
-        state.byId.set(r.id, r);
-        state.order.push(r.id);
-      }
-      bumpVersion(table);
-      // Async persist
-      void (async () => {
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await db.delete(table as any);
-          if (rows.length > 0) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            await db.insert(table as any).values(rows as any[]);
-          }
-        } catch (err) {
-          bumpVersion(table); // re-render para que UI sepa que algo falló
-          throw err;
-        }
-      })();
+      // No soportado en API genérica; usar replaceAll solo en seed inicial
+      // desde server-side. Para client, este método no debería llamarse.
+      throw new Error(
+        "[supabase-repository] replaceAll no soportado en API genérica. Usar seed-server-side.",
+      );
     },
 
     ensureLoaded,
     getVersion() {
-      return versions().get(table) ?? 0;
+      return getSupabaseRepoVersion(REPO_KEY);
+    },
+
+    subscribe(onChange) {
+      return subscribeSupabaseRepos(onChange);
     },
   };
 }

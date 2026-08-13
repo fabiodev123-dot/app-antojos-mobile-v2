@@ -1,32 +1,20 @@
 /**
- * Factory de repositorios — elige local (localStorage) o Supabase (Drizzle).
+ * Factory de repositorios — elige local (localStorage) o Supabase (API routes).
  *
  * Por default usa localStorage (comportamiento actual de la app).
- * Para activar Supabase setear en .env.local:
+ * Para activar Supabase setear en Vercel:
  *   NEXT_PUBLIC_DATA_SOURCE=supabase
  *   NEXT_PUBLIC_SUPABASE_URL=https://...
- *   NEXT_PUBLIC_SUPABASE_ANON_KEY=...
- *   DATABASE_URL=postgresql://... (server-side only, para Drizzle)
+ *   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=... (o NEXT_PUBLIC_SUPABASE_ANON_KEY)
+ *   DATABASE_URL=postgresql://... (server-side only, para Drizzle en API routes)
  *
- * En Vercel, todas se setean via env vars del proyecto.
- *
- * Si `DATA_SOURCE=supabase` pero las env vars faltan, tira error explícito al
- * usar el repo (chequeo lazy en cada cliente).
+ * El repo de Supabase usa fetch a `/api/db/{entity}` — NO importa `postgres`
+ * ni `db` directo. Por eso es seguro en el bundle del cliente.
  */
 import { createReactiveLocalRepository } from "@/lib/repositories/reactive-repository";
 import { createSupabaseRepository } from "@/lib/repositories/supabase-repository";
 import { pedidosSupabaseRepository } from "@/lib/repositories/pedidos-supabase-repository";
 import { STORAGE_KEYS } from "@/lib/storage/local-storage";
-import {
-  categorias,
-  productos,
-  ingredientes,
-  recetas,
-  clientes,
-  movimientosStock,
-  gastos,
-  cierresDiarios,
-} from "@/lib/db/schema";
 import type {
   Categoria,
   CierreDiario,
@@ -43,15 +31,14 @@ import type { Repository } from "@/lib/repositories/types";
 const useSupabase =
   process.env.NEXT_PUBLIC_DATA_SOURCE === "supabase" &&
   !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
-  !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  !!(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
 if (useSupabase) {
-  // eslint-disable-next-line no-console
   console.info(
-    "[repositories] DATA_SOURCE=supabase → usando Drizzle + Postgres",
+    "[repositories] DATA_SOURCE=supabase → usando fetch a /api/db/*",
   );
 } else {
-  // eslint-disable-next-line no-console
   console.info("[repositories] DATA_SOURCE=local → usando localStorage");
 }
 
@@ -59,42 +46,39 @@ if (useSupabase) {
 // Categorías
 // ─────────────────────────────────────────────────────────────────────────────
 export const categoriasRepository: Repository<Categoria> = useSupabase
-  ? createSupabaseRepository<Categoria, typeof categorias>(categorias, categorias.nombre)
+  ? createSupabaseRepository<Categoria>("categorias", "nombre")
   : createReactiveLocalRepository<Categoria>(STORAGE_KEYS.categorias);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Productos
 // ─────────────────────────────────────────────────────────────────────────────
 export const productosRepository: Repository<Producto> = useSupabase
-  ? createSupabaseRepository<Producto, typeof productos>(productos, productos.nombre)
+  ? createSupabaseRepository<Producto>("productos", "nombre")
   : createReactiveLocalRepository<Producto>(STORAGE_KEYS.productos);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Ingredientes
 // ─────────────────────────────────────────────────────────────────────────────
 export const ingredientesRepository: Repository<Ingrediente> = useSupabase
-  ? createSupabaseRepository<Ingrediente, typeof ingredientes>(
-      ingredientes,
-      ingredientes.nombre,
-    )
+  ? createSupabaseRepository<Ingrediente>("ingredientes", "nombre")
   : createReactiveLocalRepository<Ingrediente>(STORAGE_KEYS.ingredientes);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Recetas
 // ─────────────────────────────────────────────────────────────────────────────
 export const recetasRepository: Repository<Receta> = useSupabase
-  ? createSupabaseRepository<Receta, typeof recetas>(recetas)
+  ? createSupabaseRepository<Receta>("recetas", "createdAt")
   : createReactiveLocalRepository<Receta>(STORAGE_KEYS.recetas);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Clientes
 // ─────────────────────────────────────────────────────────────────────────────
 export const clientesRepository: Repository<Cliente> = useSupabase
-  ? createSupabaseRepository<Cliente, typeof clientes>(clientes, clientes.nombre)
+  ? createSupabaseRepository<Cliente>("clientes", "nombre")
   : createReactiveLocalRepository<Cliente>(STORAGE_KEYS.clientes);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Pedidos — repo ESPECIAL (items embebidos desde tabla aparte)
+// Pedidos — repo ESPECIAL (items embebidos)
 // ─────────────────────────────────────────────────────────────────────────────
 export const pedidosRepository: Repository<Pedido> = useSupabase
   ? (pedidosSupabaseRepository as Repository<Pedido>)
@@ -104,27 +88,21 @@ export const pedidosRepository: Repository<Pedido> = useSupabase
 // Movimientos de stock
 // ─────────────────────────────────────────────────────────────────────────────
 export const movimientosStockRepository: Repository<MovimientoStock> = useSupabase
-  ? createSupabaseRepository<MovimientoStock, typeof movimientosStock>(
-      movimientosStock,
-      movimientosStock.fecha,
-    )
+  ? createSupabaseRepository<MovimientoStock>("movimientos-stock", "fecha")
   : createReactiveLocalRepository<MovimientoStock>(STORAGE_KEYS.movimientosStock);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Gastos
 // ─────────────────────────────────────────────────────────────────────────────
 export const gastosRepository: Repository<Gasto> = useSupabase
-  ? createSupabaseRepository<Gasto, typeof gastos>(gastos, gastos.fecha)
+  ? createSupabaseRepository<Gasto>("gastos", "fecha")
   : createReactiveLocalRepository<Gasto>(STORAGE_KEYS.gastos);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Cierres diarios
 // ─────────────────────────────────────────────────────────────────────────────
 export const cierresRepository: Repository<CierreDiario> = useSupabase
-  ? createSupabaseRepository<CierreDiario, typeof cierresDiarios>(
-      cierresDiarios,
-      cierresDiarios.fecha,
-    )
+  ? createSupabaseRepository<CierreDiario>("cierres", "fecha")
   : createReactiveLocalRepository<CierreDiario>(STORAGE_KEYS.cierres);
 
 export const DATA_SOURCE = useSupabase ? "supabase" : "local";

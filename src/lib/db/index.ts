@@ -1,19 +1,23 @@
 /**
- * Cliente Drizzle para Antojos.
+ * Cliente Drizzle para Antojos — SERVER-SIDE ONLY.
  *
- * Usa el driver `postgres` (postgres-js) conectado al Session Pooler de
- * Supabase (puerto 6543, transaction mode) — serverless-friendly, no abre
- * conexión nueva por request.
+ * Solo debe importarse desde API routes, server components o server actions.
+ * El cliente NUNCA debe importar este módulo (rompe el build porque
+ * `postgres-js` usa módulos Node como `fs`, `net`, `tls` que no existen en
+ * el browser).
  *
- * `DATABASE_URL` debe estar en .env.local (NO en el bundle del cliente):
- *   DATABASE_URL=postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres
+ * El import "server-only" lanza error claro si alguien lo importa por error
+ * desde un componente client.
  *
- * En Vercel, se setea via env vars del proyecto (Production + Preview).
+ * Configuración:
+ * - `DATABASE_URL` debe estar en .env.local (NO en el bundle del cliente).
+ *   Formato: postgresql://postgres.PROJECT_REF:PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres
+ * - En Vercel, se setea via env vars del proyecto (Production + Preview).
  *
  * Importación LAZY: el chequeo de DATABASE_URL y la apertura de conexión se
- * hacen al PRIMER uso, no al module load. Esto permite que el módulo se importe
- * sin error cuando se trabaja solo con localStorage.
+ * hacen al PRIMER uso, no al module load.
  */
+import "server-only";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "./schema";
