@@ -25,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button-link";
 import { formatHora, formatPrecio, hoy } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { WeeklySummary } from "@/components/features/weekly-summary";
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -263,6 +264,8 @@ export default function HomePage() {
             <Mini label="Clientes" value={clientes.length} />
           </CardContent>
         </Card>
+
+        <WeeklySummary />
       </main>
     </>
   );
