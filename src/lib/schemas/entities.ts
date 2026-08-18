@@ -144,3 +144,32 @@ export const cierreDiarioSchema = baseEntitySchema.extend({
   enviadoEmail: z.boolean(),
   enviadoWsp: z.boolean(),
 });
+
+/**
+ * Schema para input de form (antes de completar con fecha/hora/id).
+ * Acepta string en `monto` porque el input devuelve texto, lo convertimos
+ * a number en el schema de create.
+ */
+export const ventaRapidaFormSchema = z.object({
+  monto: z
+    .string()
+    .min(1, "Ingresá un monto")
+    .refine((s) => /^\d+$/.test(s.trim()), "Solo números enteros")
+    .refine((s) => Number(s) > 0, "El monto tiene que ser mayor a 0")
+    .refine((s) => Number(s) <= 9_999_999, "Monto demasiado grande"),
+  hora: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Hora inválida (HH:MM)"),
+  nota: z.string().max(120, "Nota demasiado larga (máx 120)").optional(),
+});
+
+/**
+ * Schema para el create final (lo que se persiste en el repo).
+ * Convierte `monto` de string a number.
+ */
+export const ventaRapidaCreateSchema = z.object({
+  fecha: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida"),
+  hora: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Hora inválida"),
+  monto: z.number().int().positive(),
+  nota: z.string().max(120).optional(),
+});
