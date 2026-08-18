@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { PwaInstall } from "@/components/features/pwa-install";
 import { PwaRegister } from "@/components/features/pwa-register";
+import { VentaRapidaFab } from "@/components/layout/venta-rapida-fab";
 
 export function AppShell({ children }: { children: ReactNode }) {
   return (
@@ -11,6 +12,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         {children}
       </div>
       <BottomNav />
+      <VentaRapidaFab />
       <PwaInstall />
       <PwaRegister />
       <Toaster position="top-center" richColors closeButton />

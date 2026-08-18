@@ -186,3 +186,25 @@ export interface CierreDiario extends BaseEntity {
   enviadoEmail: boolean;
   enviadoWsp: boolean;
 }
+
+/**
+ * Venta rápida — anotación simple sin cliente, sin items, sin carrito.
+ *
+ * Caso de uso: el dueño de la rotisería vende en la noche y solo quiere
+ * anotar "vendí $X" en 5 segundos. Esto NO es un pedido (no genera stock,
+ * no descuenta ingredientes, no aparece en /pedidos). Es solo un registro
+ * monetario que alimenta el cierre diario y el resumen semanal.
+ *
+ * En el cierre diario, `VentaRapida.monto` cuenta como venta.
+ * En el dashboard/WeeklySummary, suma junto a los pedidos entregados/listos.
+ */
+export interface VentaRapida extends BaseEntity {
+  /** ISO YYYY-MM-DD. Se autocompleta con `hoy()` al crear. */
+  fecha: string;
+  /** HH:MM (24h). Se autocompleta con la hora actual. */
+  hora: string;
+  /** Monto en ARS enteros (sin centavos, como el resto de la app). */
+  monto: number;
+  /** Nota libre opcional. Ej: "sin delivery", "mostrador", etc. */
+  nota?: string;
+}

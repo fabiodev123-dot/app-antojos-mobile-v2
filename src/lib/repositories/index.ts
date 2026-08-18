@@ -25,6 +25,7 @@ import type {
   Pedido,
   Producto,
   Receta,
+  VentaRapida,
 } from "@/lib/types";
 import type { Repository } from "@/lib/repositories/types";
 
@@ -104,5 +105,12 @@ export const gastosRepository: Repository<Gasto> = useSupabase
 export const cierresRepository: Repository<CierreDiario> = useSupabase
   ? createSupabaseRepository<CierreDiario>("cierres", "fecha")
   : createReactiveLocalRepository<CierreDiario>(STORAGE_KEYS.cierres);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Ventas rápidas (anotaciones simples de monto sin cliente/items)
+// ─────────────────────────────────────────────────────────────────────────────
+export const ventasRapidasRepository: Repository<VentaRapida> = useSupabase
+  ? createSupabaseRepository<VentaRapida>("ventas-rapidas", "fecha")
+  : createReactiveLocalRepository<VentaRapida>(STORAGE_KEYS.ventasRapidas);
 
 export const DATA_SOURCE = useSupabase ? "supabase" : "local";

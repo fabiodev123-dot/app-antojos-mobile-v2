@@ -1,10 +1,16 @@
-import type { Gasto, Pedido } from "@/lib/types";
+import type { Gasto, Pedido, VentaRapida } from "@/lib/types";
 import { formatFechaLarga, formatPrecio } from "@/lib/format";
 
 interface CierreData {
   fecha: string;
   pedidos: Pedido[];
   gastos: Gasto[];
+  /**
+   * Ventas rápidas del día (opcional para back-compat). Si está presente,
+   * se suman al totalVentas y se cuentan como un "pedido" más a efectos
+   * del cierre (porque es plata que entró).
+   */
+  ventasRapidas?: VentaRapida[];
 }
 
 export function buildCierreResumen(data: CierreData): {
@@ -16,8 +22,13 @@ export function buildCierreResumen(data: CierreData): {
   const pedidosCerrados = data.pedidos.filter(
     (p) => p.estado === "entregado" || p.estado === "listo",
   );
-  const totalVentas = pedidosCerrados.reduce((sum, p) => sum + p.total, 0);
-  const cantidadPedidos = pedidosCerrados.length;
+  const totalVentasPedidos = pedidosCerrados.reduce((sum, p) => sum + p.total, 0);
+  const ventasRapidasDelDia = (data.ventasRapidas ?? []).filter(
+    (v) => v.fecha === data.fecha,
+  );
+  const totalVentasRapidas = ventasRapidasDelDia.reduce((sum, v) => sum + v.monto, 0);
+  const totalVentas = totalVentasPedidos + totalVentasRapidas;
+  const cantidadPedidos = pedidosCerrados.length + ventasRapidasDelDia.length;
   const totalGastos = data.gastos.reduce((sum, g) => sum + g.monto, 0);
   const balance = totalVentas - totalGastos;
   return { totalVentas, cantidadPedidos, totalGastos, balance };
@@ -55,6 +66,18 @@ export function buildCierreText(data: CierreData): string {
     for (const p of pedidosCerrados) {
       const items = p.items.map((it) => `${it.cantidad}× ${it.nombreProducto}`).join(", ");
       lines.push(`• #${p.numero} ${p.nombreCliente} — ${formatPrecio(p.total)} (${items})`);
+    }
+  }
+
+  const ventasRapidasDelDia = (data.ventasRapidas ?? []).filter(
+    (v) => v.fecha === data.fecha,
+  );
+  if (ventasRapidasDelDia.length > 0) {
+    lines.push("");
+    lines.push("*Ventas rápidas:*");
+    for (const v of ventasRapidasDelDia) {
+      const nota = v.nota ? ` (${v.nota})` : "";
+      lines.push(`• ${v.hora} — ${formatPrecio(v.monto)}${nota}`);
     }
   }
 
