@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { LogOut, Shield } from "lucide-react";
 import { logoutAction } from "@/app/login/actions";
 import { requireSuperAdmin } from "@/lib/auth/context";

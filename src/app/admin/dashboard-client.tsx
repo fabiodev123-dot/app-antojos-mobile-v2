@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { formatPrecio, formatFechaCorta } from "@/lib/format";
+import { formatFechaCorta } from "@/lib/format";
 import type { TenantWithStats, GlobalStats, TenantStatus } from "@/lib/services/admin-service";
 
 const STATUS_LABEL: Record<TenantStatus, string> = {
@@ -96,7 +96,7 @@ export function AdminDashboardClient({
           icon={<Users className="size-4" />}
           label="Usuarios totales"
           value={stats.totalUsers}
-          sublabel={`${stats.activeUsersThisWeek} tenants activos esta semana`}
+          sublabel={`${stats.totalActiveUsersThisWeek} tenants activos esta semana`}
         />
         <KPI
           icon={<ShoppingCart className="size-4" />}
