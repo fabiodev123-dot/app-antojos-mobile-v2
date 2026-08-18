@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Mail, MessageCircle, TrendingUp, TrendingDown, Scale, MoonStar, Save, Plus, Trash2, Loader2, FileText, FileSpreadsheet, Boxes, ShoppingCart, AlertTriangle } from "lucide-react";
+import { Mail, MessageCircle, TrendingUp, TrendingDown, Scale, MoonStar, Save, Plus, Trash2, Loader2, FileText, FileSpreadsheet, Boxes, ShoppingCart, AlertTriangle, Zap } from "lucide-react";
 import {
   cierresRepository,
   gastosRepository,
@@ -337,6 +337,37 @@ export default function CierrePage() {
             )}
           </CardContent>
         </Card>
+
+        {ventasRapidasHoy.length > 0 ? (
+          <Card className="overflow-hidden p-0 card-elevated">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 border-b border-border/60 bg-gradient-to-r from-muted/40 to-transparent p-3.5">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                <Zap className="size-4 text-primary" />
+                Ventas rápidas
+              </CardTitle>
+              <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary text-[10px]">
+                {ventasRapidasHoy.length} {ventasRapidasHoy.length === 1 ? "anotada" : "anotadas"}
+              </Badge>
+            </CardHeader>
+            <CardContent className="divide-y divide-border p-0">
+              {ventasRapidasHoy.map((v) => (
+                <div key={v.id} className="flex items-center justify-between gap-2 p-3">
+                  <div className="min-w-0 flex items-center gap-2">
+                    <span className="text-[10px] font-mono tabular-nums text-muted-foreground shrink-0">
+                      {v.hora}
+                    </span>
+                    {v.nota ? (
+                      <span className="truncate text-sm text-muted-foreground">{v.nota}</span>
+                    ) : null}
+                  </div>
+                  <span className="font-heading font-semibold tabular-nums text-success shrink-0">
+                    {formatPrecio(v.monto)}
+                  </span>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
 
         <Card className="overflow-hidden p-0 card-elevated">
           <CardHeader className="border-b border-border/60 bg-muted/30 p-3.5">
