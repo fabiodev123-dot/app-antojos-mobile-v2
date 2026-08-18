@@ -8,6 +8,7 @@ import {
   ingredientesRepository,
   pedidosRepository,
   productosRepository,
+  ventasRapidasRepository,
 } from "@/lib/repositories";
 import { useRepositoryList } from "@/hooks/use-repository";
 import { ShellHeader } from "@/components/layout/shell-header";
@@ -52,6 +53,7 @@ export default function CierrePage() {
   const pedidos = useRepositoryList(pedidosRepository);
   const ingredientes = useRepositoryList(ingredientesRepository);
   const productos = useRepositoryList(productosRepository);
+  const ventasRapidas = useRepositoryList(ventasRapidasRepository);
 
   const [showGastoDialog, setShowGastoDialog] = useState(false);
   const [generating, setGenerating] = useState<"pdf" | "xlsx" | null>(null);
@@ -59,8 +61,14 @@ export default function CierrePage() {
   const today = hoy();
   const pedidosHoy = pedidos.filter((p) => p.fecha === today);
   const gastosHoy = gastos.filter((g) => g.fecha === today);
+  const ventasRapidasHoy = ventasRapidas.filter((v) => v.fecha === today);
 
-  const data: CierreData = { fecha: today, pedidos: pedidosHoy, gastos: gastosHoy };
+  const data: CierreData = {
+    fecha: today,
+    pedidos: pedidosHoy,
+    gastos: gastosHoy,
+    ventasRapidas: ventasRapidasHoy,
+  };
   const resumen = buildCierreResumen(data);
 
   const ultimoCierre = [...cierres].sort((a, b) => (a.fecha > b.fecha ? -1 : 1))[0];
