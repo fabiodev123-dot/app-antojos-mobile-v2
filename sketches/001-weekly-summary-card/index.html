@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Antojos · Resumen semanal (Card rotisería)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #1a1208;
+    --card: #2a1d10;
+    --card-elevated: #322313;
+    --border: #3d2a17;
+    --border-soft: #4a3220;
+    --fg: #fdf6e3;
+    --fg-muted: #b89671;
+    --fg-dim: #876042;
+    --brand: #ffcc00;
+    --brand-glow: rgba(255, 204, 0, 0.4);
+    --success: #4ade80;
+    --warm: #ff9a3c;
+    --weekend: #f472b6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(180deg, #1a1208 0%, #0e0904 100%);
+    color: var(--fg);
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+    padding: 2rem 1rem;
+  }
+  .frame {
+    max-width: 380px;
+    margin: 0 auto;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 8px 32px -8px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,204,0,0.04);
+  }
+  .frame-header {
+    padding: 16px;
+    background: linear-gradient(135deg, rgba(255,204,0,0.12) 0%, rgba(255,154,60,0.06) 50%, transparent 100%);
+    border-bottom: 1px solid var(--border-soft);
+    position: relative;
+  }
+  .frame-header::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--brand) 0%, var(--warm) 100%);
+  }
+  .frame-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+  }
+  .frame-title h3 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--fg);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .frame-title h3 .badge {
+    background: var(--brand);
+    color: #1a1208;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 2px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .frame-meta {
+    font-size: 11px;
+    color: var(--fg-muted);
+    font-weight: 500;
+  }
+  .frame-subtitle {
+    font-size: 12px;
+    color: var(--fg-muted);
+  }
+  .week-list { list-style: none; padding: 8px 0; }
+  .day-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    transition: background 0.15s;
+    position: relative;
+  }
+  .day-row:hover { background: var(--card-elevated); }
+  .day-row.is-today {
+    background: linear-gradient(90deg, rgba(255,204,0,0.08) 0%, transparent 80%);
+  }
+  .day-row.is-today::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 8px; bottom: 8px;
+    width: 3px;
+    background: var(--brand);
+    border-radius: 0 2px 2px 0;
+    box-shadow: 0 0 12px var(--brand-glow);
+  }
+  .day-bubble {
+    width: 38px;
+    height: 38px;
+    border-radius: 10px;
+    background: var(--card-elevated);
+    border: 1px solid var(--border-soft);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .day-row.is-today .day-bubble {
+    background: var(--brand);
+    border-color: var(--brand);
+    box-shadow: 0 0 20px var(--brand-glow);
+  }
+  .day-name {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--fg-muted);
+  }
+  .is-today .day-name { color: #1a1208; }
+  .day-num {
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--fg);
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+  }
+  .is-today .day-num { color: #1a1208; }
+  .day-info { flex: 1; min-width: 0; }
+  .day-count {
+    font-size: 11px;
+    color: var(--fg-muted);
+    margin-bottom: 2px;
+  }
+  .day-bar {
+    height: 4px;
+    background: var(--border-soft);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .day-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--brand) 0%, var(--warm) 100%);
+    border-radius: 4px;
+    transition: width 0.4s;
+  }
+  .is-today .day-bar-fill {
+    background: linear-gradient(90deg, #1a1208 0%, #1a1208 100%);
+  }
+  .day-total {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--fg);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+  .day-total.is-zero { color: var(--fg-dim); font-weight: 500; }
+  .week-total {
+    margin: 8px 16px 16px;
+    padding: 14px 16px;
+    background: linear-gradient(135deg, rgba(74,222,128,0.1) 0%, rgba(74,222,128,0.04) 100%);
+    border: 1px solid rgba(74,222,128,0.2);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .week-total-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .week-total-label .top {
+    font-size: 11px;
+    color: var(--fg-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+  .week-total-label .bot {
+    font-size: 11px;
+    color: var(--success);
+    font-weight: 500;
+  }
+  .week-total-value {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--success);
+    font-variant-numeric: tabular-nums;
+  }
+  .legend {
+    text-align: center;
+    margin-top: 14px;
+    font-size: 11px;
+    color: var(--fg-muted);
+  }
+  .legend kbd {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 6px;
+    font-size: 10px;
+    color: var(--fg);
+  }
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="frame-header">
+      <div class="frame-title">
+        <h3>📅 Esta semana <span class="badge">Sem 34</span></h3>
+        <span class="frame-meta">17–23 ago</span>
+      </div>
+      <p class="frame-subtitle">Resumen de lunes a domingo</p>
+    </div>
+
+    <ul class="week-list">
+      <li class="day-row">
+        <div class="day-bubble">
+          <span class="day-name">Lun</span>
+          <span class="day-num">17</span>
+        </div>
+        <div class="day-info">
+          <div class="day-count">3 pedidos</div>
+          <div class="day-bar"><div class="day-bar-fill" style="width: 60%;"></div></div>
+        </div>
+        <div class="day-total">$8.500</div>
+      </li>
+      <li class="day-row">
+        <div class="day-bubble">
+          <span class="day-name">Mar</span>
+          <span class="day-num">18</span>
+        </div>
+        <div class="day-info">
+          <div class="day-count">5 pedidos</div>
+          <div class="day-bar"><div class="day-bar-fill" style="width: 100%;"></div></div>
+        </div>
+        <div class="day-total">$14.200</div>
+      </li>
+      <li class="day-row">
+        <div class="day-bubble">
+          <span class="day-name">Mié</span>
+          <span class="day-num">19</span>
+        </div>
+        <div class="day-info">
+          <div class="day-count">2 pedidos</div>
+          <div class="day-bar"><div class="day-bar-fill" style="width: 30%;"></div></div>
+        </div>
+        <div class="day-total">$4.300</div>
+      </li>
+      <li class="day-row">
+        <div class="day-bubble">
+          <span class="day-name">Jue</span>
+          <span class="day-num">20</span>
+        </div>
+        <div class="day-info">
+          <div class="day-count">Sin pedidos</div>
+        </div>
+        <div class="day-total is-zero">$0</div>
+      </li>
+      <li class="day-row is-today">
+        <div class="day-bubble">
+          <span class="day-name">Vie</span>
+          <span class="day-num">21</span>
+        </div>
+        <div class="day-info">
+          <div class="day-count">4 pedidos · hoy</div>
+          <div class="day-bar"><div class="day-bar-fill" style="width: 68%;"></div></div>
+        </div>
+        <div class="day-total">$9.750</div>
+      </li>
+      <li class="day-row">
+        <div class="day-bubble">
+          <span class="day-name">Sáb</span>
+          <span class="day-num">22</span>
+        </div>
+        <div class="day-info">
+          <div class="day-count">Sin pedidos</div>
+        </div>
+        <div class="day-total is-zero">$0</div>
+      </li>
+      <li class="day-row">
+        <div class="day-bubble">
+          <span class="day-name">Dom</span>
+          <span class="day-num">23</span>
+        </div>
+        <div class="day-info">
+          <div class="day-count">Sin pedidos</div>
+        </div>
+        <div class="day-total is-zero">$0</div>
+      </li>
+    </ul>
+
+    <div class="week-total">
+      <div class="week-total-label">
+        <span class="top">Total semana</span>
+        <span class="bot">14 pedidos cerrados</span>
+      </div>
+      <div class="week-total-value">$36.750</div>
+    </div>
+  </div>
+
+  <p class="legend">
+    Variant <kbd>B</kbd> · Rotisería cálida · amarillo + naranja + verde ganancia
+  </p>
+</body>
+</html>
