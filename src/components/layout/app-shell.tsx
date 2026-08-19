@@ -1,3 +1,5 @@
+"use client";
+
 import type { ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { BottomNav } from "@/components/layout/bottom-nav";
