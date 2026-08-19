@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Calendar, TrendingUp } from "lucide-react";
 import { useRepositoryList } from "@/hooks/use-repository";
-import { pedidosRepository } from "@/lib/repositories";
+import { pedidosRepository, ventasRapidasRepository } from "@/lib/repositories";
 import { getStartOfWeek, getWeekDays, formatWeekLabel } from "@/lib/utils/week";
 import { formatPrecio, hoy } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,15 +20,15 @@ type DaySummary = {
  * Resumen semanal de ventas — vista read-only.
  *
  * Muestra los 7 días de la semana actual (lunes a domingo) con el total
- * de ventas por día y el total semanal, leyendo de `pedidosRepository`.
- * No muta estado. No agrega entidades.
+ * de ventas por día y el total semanal, leyendo de `pedidosRepository`
+ * y `ventasRapidasRepository`. No muta estado. No agrega entidades.
  *
- * Para el cálculo de "ventas" replica la lógica de `app/page.tsx`:
- * sólo cuentan pedidos con estado "entregado" o "listo" (los cerrados
- * que efectivamente generaron plata).
+ * Regla de "ventas": pedidos con estado "entregado" o "listo" + todas
+ * las ventas rápidas (que se persisten como ya cobradas).
  */
 export function WeeklySummary() {
   const pedidos = useRepositoryList(pedidosRepository);
+  const ventasRapidas = useRepositoryList(ventasRapidasRepository);
   const today = hoy();
 
   const { days, weekTotal, weekCount, hasAnySales, weekNumber, maxTotal } = useMemo(() => {
@@ -39,6 +39,9 @@ export function WeeklySummary() {
         weekDays.includes(p.fecha) &&
         (p.estado === "entregado" || p.estado === "listo"),
     );
+    const ventasRapidasSemana = ventasRapidas.filter((v) =>
+      weekDays.includes(v.fecha),
+    );
     const byDay = new Map<string, { total: number; count: number }>();
     for (const d of weekDays) byDay.set(d, { total: 0, count: 0 });
     for (const p of ventas) {
@@ -48,6 +51,12 @@ export function WeeklySummary() {
         acc.count += 1;
       }
     }
+    for (const v of ventasRapidasSemana) {
+      const acc = byDay.get(v.fecha);
+      if (acc) {
+        acc.total += v.monto;
+      }
+    }
     const days: DaySummary[] = weekDays.map((fecha) => {
       const acc = byDay.get(fecha) ?? { total: 0, count: 0 };
       return { fecha, total: acc.total, count: acc.count };
@@ -55,10 +64,10 @@ export function WeeklySummary() {
     const weekTotal = days.reduce((s, d) => s + d.total, 0);
     const weekCount = days.reduce((s, d) => s + d.count, 0);
     const maxTotal = Math.max(1, ...days.map((d) => d.total));
-    const hasAnySales = ventas.length > 0;
+    const hasAnySales = ventas.length > 0 || ventasRapidasSemana.length > 0;
     const weekNumber = getISOWeek(new Date(today + "T00:00:00"));
     return { days, weekTotal, weekCount, hasAnySales, weekNumber, maxTotal };
-  }, [pedidos, today]);
+  }, [pedidos, ventasRapidas, today]);
 
   return (
     <Card className="overflow-hidden p-0 card-elevated">
