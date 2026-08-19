@@ -14,6 +14,7 @@ const MIGRATIONS = [
   '0005_enable_rls_tenants_super_admins.sql',
   '0006_admin_revenue_rpcs.sql',
   '0007_fix_admin_list_tenants_ambiguous.sql',
+  '0008_admin_revenue_trend.sql',
 ];
 
 console.log(`🚀 Applying ${MIGRATIONS.length} migrations in order...\n`);

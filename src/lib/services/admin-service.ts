@@ -284,3 +284,30 @@ export async function getTenantRevenue(tenantId: string): Promise<Revenue> {
     },
   };
 }
+
+export type RevenueTrendPoint = {
+  fecha: string;
+  pedidosTotal: number;
+  ventasRapidasTotal: number;
+};
+
+export async function getRevenueTrend(
+  days = 30,
+): Promise<RevenueTrendPoint[]> {
+  const admin = createSupabaseAdminClient();
+
+  const { data, error } = await admin.rpc(
+    "admin_revenue_trend" as never,
+    { p_days: days } as never,
+  );
+
+  if (error) {
+    throw new Error(`getRevenueTrend failed: ${error.message}`);
+  }
+
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    fecha: String(row.fecha),
+    pedidosTotal: Number(row.pedidos_total ?? 0),
+    ventasRapidasTotal: Number(row.ventas_rapidas_total ?? 0),
+  }));
+}

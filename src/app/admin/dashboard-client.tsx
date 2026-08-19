@@ -22,7 +22,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatFechaCorta, formatPrecio } from "@/lib/format";
-import type { TenantWithStats, GlobalStats, TenantStatus, Revenue } from "@/lib/services/admin-service";
+import type { TenantWithStats, GlobalStats, TenantStatus, Revenue, RevenueTrendPoint } from "@/lib/services/admin-service";
+import { RevenueTrendCard } from "@/components/features/revenue-trend-card";
 
 const STATUS_LABEL: Record<TenantStatus, string> = {
   active: "Activo",
@@ -52,10 +53,12 @@ export function AdminDashboardClient({
   stats,
   tenants,
   revenue,
+  trend,
 }: {
   stats: GlobalStats;
   tenants: TenantWithStats[];
   revenue: Revenue;
+  trend: RevenueTrendPoint[];
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TenantStatus | "all">("all");
@@ -151,6 +154,11 @@ export function AdminDashboardClient({
           value={formatPrecio(revenue.pedidos.total + revenue.ventasRapidas.total)}
           sublabel={`${stats.totalOrdersToday + (revenue.ventasRapidas.today > 0 ? 1 : 0)} movimientos hoy`}
         />
+      </section>
+
+      {/* REVENUE TREND */}
+      <section className="mt-4">
+        <RevenueTrendCard data={trend} />
       </section>
 
       {/* FILTROS */}
