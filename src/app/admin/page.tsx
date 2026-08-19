@@ -1,16 +1,17 @@
 import { LogOut, Shield } from "lucide-react";
 import { logoutAction } from "@/app/login/actions";
 import { requireSuperAdmin } from "@/lib/auth/context";
-import { getTenantsWithStats, getGlobalStats } from "@/lib/services/admin-service";
+import { getTenantsWithStats, getGlobalStats, getGlobalRevenue } from "@/lib/services/admin-service";
 import { AdminDashboardClient } from "./dashboard-client";
 
 export default async function AdminPage() {
   const ctx = await requireSuperAdmin();
 
   // Fetch en paralelo (server-side, no se envía al cliente)
-  const [stats, tenants] = await Promise.all([
+  const [stats, tenants, revenue] = await Promise.all([
     getGlobalStats(),
     getTenantsWithStats(),
+    getGlobalRevenue(),
   ]);
 
   return (
@@ -48,7 +49,7 @@ export default async function AdminPage() {
 
       {/* CONTENT */}
       <div className="mx-auto max-w-7xl px-4 py-6">
-        <AdminDashboardClient stats={stats} tenants={tenants} />
+        <AdminDashboardClient stats={stats} tenants={tenants} revenue={revenue} />
       </div>
     </main>
   );

@@ -4,7 +4,7 @@ import { ArrowLeft, CheckCircle2, Clock, AlertCircle, CircleDollarSign, Calendar
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { requireSuperAdmin } from "@/lib/auth/context";
-import { getTenantDetail } from "@/lib/services/admin-service";
+import { getTenantDetail, getTenantRevenue } from "@/lib/services/admin-service";
 import { formatFechaLarga, formatPrecio } from "@/lib/format";
 import { UsersList, RecentOrdersTable, OrdersBarChart } from "./tenant-detail-components";
 import { TenantSettingsCard } from "./tenant-settings-card";
@@ -47,12 +47,14 @@ export default async function TenantDetailPage({
 }) {
   await requireSuperAdmin();
   const { id } = await params;
-  const tenant = await getTenantDetail(id);
+  const [tenant, revenue] = await Promise.all([
+    getTenantDetail(id),
+    getTenantRevenue(id),
+  ]);
 
   if (!tenant) notFound();
 
   const StatusIcon = STATUS_ICON[tenant.status];
-  const totalRevenue30d = tenant.ordersByDay.reduce((sum, d) => sum + d.total, 0);
 
   return (
     <main className="bg-background min-h-svh">
@@ -98,7 +100,8 @@ export default async function TenantDetailPage({
           <Metric label="Pedidos hoy" value={String(tenant.todayOrders)} />
           <Metric
             label="Revenue 30d"
-            value={formatPrecio(totalRevenue30d)}
+            value={formatPrecio(revenue.pedidos.last30d + revenue.ventasRapidas.last30d)}
+            sublabel={`${formatPrecio(revenue.pedidos.last30d)} pedidos · ${formatPrecio(revenue.ventasRapidas.last30d)} rápidas`}
             valueClassName="text-base"
           />
           <Metric
@@ -146,11 +149,13 @@ export default async function TenantDetailPage({
 function Metric({
   label,
   value,
+  sublabel,
   valueClassName,
   icon,
 }: {
   label: string;
   value: string;
+  sublabel?: string;
   valueClassName?: string;
   icon?: React.ReactNode;
 }) {
@@ -164,6 +169,9 @@ function Metric({
         <p className={`font-heading mt-2 text-2xl font-bold tabular-nums leading-tight ${valueClassName ?? ""}`}>
           {value}
         </p>
+        {sublabel && (
+          <p className="text-muted-foreground mt-1 text-xs">{sublabel}</p>
+        )}
       </CardContent>
     </Card>
   );

@@ -13,14 +13,16 @@ import {
   Search,
   ArrowRight,
   Boxes,
+  CircleDollarSign,
+  Receipt,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { formatFechaCorta } from "@/lib/format";
-import type { TenantWithStats, GlobalStats, TenantStatus } from "@/lib/services/admin-service";
+import { formatFechaCorta, formatPrecio } from "@/lib/format";
+import type { TenantWithStats, GlobalStats, TenantStatus, Revenue } from "@/lib/services/admin-service";
 
 const STATUS_LABEL: Record<TenantStatus, string> = {
   active: "Activo",
@@ -49,9 +51,11 @@ const PLAN_LABEL = {
 export function AdminDashboardClient({
   stats,
   tenants,
+  revenue,
 }: {
   stats: GlobalStats;
   tenants: TenantWithStats[];
+  revenue: Revenue;
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TenantStatus | "all">("all");
@@ -109,6 +113,43 @@ export function AdminDashboardClient({
           label="Plataforma"
           value="SaaS"
           sublabel="Multi-tenant · path-based"
+        />
+      </section>
+
+      {/* REVENUE ROW */}
+      <section className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <KPI
+          icon={<CircleDollarSign className="size-4" />}
+          label="Revenue hoy"
+          value={formatPrecio(revenue.pedidos.today + revenue.ventasRapidas.today)}
+          sublabel={
+            <>
+              <span className="text-success">{formatPrecio(revenue.pedidos.today)} pedidos</span>
+              {revenue.ventasRapidas.today > 0 && (
+                <>
+                  · <span className="text-info">{formatPrecio(revenue.ventasRapidas.today)} rápidas</span>
+                </>
+              )}
+            </>
+          }
+        />
+        <KPI
+          icon={<CircleDollarSign className="size-4" />}
+          label="Revenue 7d"
+          value={formatPrecio(revenue.pedidos.last7d + revenue.ventasRapidas.last7d)}
+          sublabel={formatPrecio(revenue.ventasRapidas.last7d) + " en ventas rápidas"}
+        />
+        <KPI
+          icon={<CircleDollarSign className="size-4" />}
+          label="Revenue 30d"
+          value={formatPrecio(revenue.pedidos.last30d + revenue.ventasRapidas.last30d)}
+          sublabel={formatPrecio(revenue.ventasRapidas.last30d) + " en ventas rápidas"}
+        />
+        <KPI
+          icon={<Receipt className="size-4" />}
+          label="Revenue total"
+          value={formatPrecio(revenue.pedidos.total + revenue.ventasRapidas.total)}
+          sublabel={`${stats.totalOrdersToday + (revenue.ventasRapidas.today > 0 ? 1 : 0)} movimientos hoy`}
         />
       </section>
 

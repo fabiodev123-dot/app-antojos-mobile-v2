@@ -217,3 +217,70 @@ async function getOrdersByDay(tenantId: string, days: number): Promise<OrdersByD
     .map(([fecha, agg]) => ({ fecha, total: agg.total, cantidad: agg.cantidad }))
     .sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
+
+export type RevenueBreakdown = {
+  today: number;
+  last7d: number;
+  last30d: number;
+  total: number;
+};
+
+export type Revenue = {
+  pedidos: RevenueBreakdown;
+  ventasRapidas: RevenueBreakdown;
+};
+
+export async function getGlobalRevenue(): Promise<Revenue> {
+  const admin = createSupabaseAdminClient();
+
+  const { data, error } = await admin.rpc("admin_global_revenue");
+
+  if (error) {
+    throw new Error(`getGlobalRevenue failed: ${error.message}`);
+  }
+
+  const row = data?.[0] ?? {};
+  return {
+    pedidos: {
+      today: Number(row.revenue_today ?? 0),
+      last7d: Number(row.revenue_7d ?? 0),
+      last30d: Number(row.revenue_30d ?? 0),
+      total: Number(row.revenue_total ?? 0),
+    },
+    ventasRapidas: {
+      today: Number(row.ventas_rapidas_today ?? 0),
+      last7d: Number(row.ventas_rapidas_7d ?? 0),
+      last30d: Number(row.ventas_rapidas_30d ?? 0),
+      total: Number(row.ventas_rapidas_total ?? 0),
+    },
+  };
+}
+
+export async function getTenantRevenue(tenantId: string): Promise<Revenue> {
+  const admin = createSupabaseAdminClient();
+
+  const { data, error } = await admin.rpc(
+    "admin_tenant_revenue" as never,
+    { p_tenant_id: tenantId } as never,
+  );
+
+  if (error) {
+    throw new Error(`getTenantRevenue failed: ${error.message}`);
+  }
+
+  const row = data?.[0] ?? {};
+  return {
+    pedidos: {
+      today: Number(row.revenue_today ?? 0),
+      last7d: Number(row.revenue_7d ?? 0),
+      last30d: Number(row.revenue_30d ?? 0),
+      total: Number(row.revenue_total ?? 0),
+    },
+    ventasRapidas: {
+      today: Number(row.ventas_rapidas_today ?? 0),
+      last7d: Number(row.ventas_rapidas_7d ?? 0),
+      last30d: Number(row.ventas_rapidas_30d ?? 0),
+      total: Number(row.ventas_rapidas_total ?? 0),
+    },
+  };
+}

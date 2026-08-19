@@ -12,6 +12,7 @@ const MIGRATIONS = [
   '0003_admin_rpcs.sql',
   '0004_ventas_rapidas.sql',
   '0005_enable_rls_tenants_super_admins.sql',
+  '0006_admin_revenue_rpcs.sql',
 ];
 
 console.log(`🚀 Applying ${MIGRATIONS.length} migrations in order...\n`);
