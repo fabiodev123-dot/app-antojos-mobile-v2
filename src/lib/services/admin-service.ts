@@ -311,3 +311,69 @@ export async function getRevenueTrend(
     ventasRapidasTotal: Number(row.ventas_rapidas_total ?? 0),
   }));
 }
+
+export type DevicesByTenant = {
+  tenantId: string;
+  activeDevices: number;
+  totalDevices: number;
+  lastActivity: string | null;
+};
+
+export type ActiveDevice = {
+  id: string;
+  tenantId: string;
+  userId: string;
+  deviceId: string;
+  userAgent: string | null;
+  platform: string | null;
+  appVersion: string | null;
+  lastSeen: string;
+  firstSeen: string;
+};
+
+export async function getActiveDevicesCount(): Promise<number> {
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.rpc("admin_active_devices_count");
+  if (error) {
+    throw new Error(`getActiveDevicesCount failed: ${error.message}`);
+  }
+  return Number(data ?? 0);
+}
+
+export async function getDevicesByTenant(): Promise<DevicesByTenant[]> {
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.rpc("admin_devices_by_tenant");
+  if (error) {
+    throw new Error(`getDevicesByTenant failed: ${error.message}`);
+  }
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    tenantId: String(row.tenant_id),
+    activeDevices: Number(row.active_devices ?? 0),
+    totalDevices: Number(row.total_devices ?? 0),
+    lastActivity: row.last_activity ? String(row.last_activity) : null,
+  }));
+}
+
+export async function listActiveDevices(
+  tenantId?: string,
+): Promise<ActiveDevice[]> {
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.rpc(
+    "admin_list_active_devices" as never,
+    { p_tenant_id: tenantId ?? null } as never,
+  );
+  if (error) {
+    throw new Error(`listActiveDevices failed: ${error.message}`);
+  }
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    id: String(row.id),
+    tenantId: String(row.tenant_id),
+    userId: String(row.user_id),
+    deviceId: String(row.device_id),
+    userAgent: row.user_agent ? String(row.user_agent) : null,
+    platform: row.platform ? String(row.platform) : null,
+    appVersion: row.app_version ? String(row.app_version) : null,
+    lastSeen: String(row.last_seen),
+    firstSeen: String(row.first_seen),
+  }));
+}
