@@ -10,6 +10,7 @@ const MIGRATIONS = [
   '0001_tenants.sql',
   '0002_pedidos_tenant_id.sql',
   '0003_admin_rpcs.sql',
+  '0004_ventas_rapidas.sql',
 ];
 
 console.log(`🚀 Applying ${MIGRATIONS.length} migrations in order...\n`);

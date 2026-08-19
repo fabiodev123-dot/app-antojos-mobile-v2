@@ -110,7 +110,7 @@ export const cierresRepository: Repository<CierreDiario> = useSupabase
 // Ventas rápidas (anotaciones simples de monto sin cliente/items)
 // ─────────────────────────────────────────────────────────────────────────────
 export const ventasRapidasRepository: Repository<VentaRapida> = useSupabase
-  ? createSupabaseRepository<VentaRapida>("ventas-rapidas", "fecha")
+  ? createSupabaseRepository<VentaRapida>("ventas_rapidas", "fecha")
   : createReactiveLocalRepository<VentaRapida>(STORAGE_KEYS.ventasRapidas);
 
 export const DATA_SOURCE = useSupabase ? "supabase" : "local";
