@@ -5,7 +5,8 @@ export const dynamic = "force-dynamic";
 import { useActionState } from "react";
 import Link from "next/link";
 import { Shield, LogIn, AlertCircle, Loader2 } from "lucide-react";
-import { loginAction, type LoginState, INITIAL_LOGIN_STATE } from "./actions";
+import { loginAction } from "./actions";
+import { type LoginState, INITIAL_LOGIN_STATE } from "./state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 

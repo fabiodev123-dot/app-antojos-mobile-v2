@@ -12,22 +12,12 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { LoginState, FieldErrors } from "./state";
 
 const loginSchema = z.object({
   email: z.string().email("Email inválido").max(255),
   password: z.string().min(6, "Mínimo 6 caracteres").max(128),
 });
-
-type FieldErrors = Partial<Record<"email" | "password", string>>;
-
-export type LoginState = {
-  ok: boolean;
-  error?: string;
-  fieldErrors?: FieldErrors;
-};
-
-/** Estado inicial antes de submit. */
-export const INITIAL_LOGIN_STATE: LoginState = { ok: true };
 
 export async function loginAction(
   _prevState: LoginState,
