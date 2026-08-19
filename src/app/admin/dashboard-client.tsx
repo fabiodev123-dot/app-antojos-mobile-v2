@@ -22,8 +22,17 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { formatFechaCorta, formatPrecio } from "@/lib/format";
-import type { TenantWithStats, GlobalStats, TenantStatus, Revenue, RevenueTrendPoint } from "@/lib/services/admin-service";
+import type {
+  TenantWithStats,
+  GlobalStats,
+  TenantStatus,
+  Revenue,
+  RevenueTrendPoint,
+  ActiveDevice,
+  DevicesByTenant,
+} from "@/lib/services/admin-service";
 import { RevenueTrendCard } from "@/components/features/revenue-trend-card";
+import { DevicesCard } from "@/components/features/devices-card";
 
 const STATUS_LABEL: Record<TenantStatus, string> = {
   active: "Activo",
@@ -54,11 +63,17 @@ export function AdminDashboardClient({
   tenants,
   revenue,
   trend,
+  activeDevicesCount,
+  devicesByTenant,
+  activeDevices,
 }: {
   stats: GlobalStats;
   tenants: TenantWithStats[];
   revenue: Revenue;
   trend: RevenueTrendPoint[];
+  activeDevicesCount: number;
+  devicesByTenant: DevicesByTenant[];
+  activeDevices: ActiveDevice[];
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TenantStatus | "all">("all");
@@ -159,6 +174,16 @@ export function AdminDashboardClient({
       {/* REVENUE TREND */}
       <section className="mt-4">
         <RevenueTrendCard data={trend} />
+      </section>
+
+      {/* DEVICES */}
+      <section className="mt-4">
+        <DevicesCard
+          activeCount={activeDevicesCount}
+          devices={activeDevices}
+          byTenant={devicesByTenant}
+          tenants={tenants}
+        />
       </section>
 
       {/* FILTROS */}
