@@ -39,19 +39,6 @@ const useSupabase =
   !!(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
-console.log(
-  "[repositories DEBUG] env values:",
-  JSON.stringify({
-    DATA_SOURCE: process.env.NEXT_PUBLIC_DATA_SOURCE,
-    URL: process.env.NEXT_PUBLIC_SUPABASE_URL?.slice(0, 40),
-    hasKey: !!(
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ),
-    useSupabase,
-  }),
-);
-
 if (useSupabase) {
   console.info(
     "[repositories] DATA_SOURCE=supabase → usando fetch a /api/db/*",
