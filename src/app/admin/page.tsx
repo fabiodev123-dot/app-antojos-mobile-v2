@@ -7,6 +7,8 @@ import {
   getActiveDevicesCount,
   getDevicesByTenant,
   listActiveDevices,
+  getRecentActivity,
+  buildAlerts,
 } from "@/lib/services/admin-service";
 import { AdminDashboardClient } from "./dashboard-client";
 
@@ -21,6 +23,7 @@ export default async function AdminPage() {
     getActiveDevicesCount(),
     getDevicesByTenant(),
     listActiveDevices(),
+    getRecentActivity(12),
   ]);
 
   const [
@@ -31,7 +34,13 @@ export default async function AdminPage() {
     activeDevicesCountR,
     devicesByTenantR,
     activeDevicesR,
+    activityR,
   ] = results;
+
+  const tenants = tenantsR.status === "fulfilled" ? tenantsR.value : [];
+  const activeDevicesCount = activeDevicesCountR.status === "fulfilled" ? activeDevicesCountR.value : 0;
+  const activity = activityR.status === "fulfilled" ? activityR.value : [];
+  const alerts = buildAlerts(tenants, activeDevicesCount);
 
   return (
     <AdminDashboardClient
@@ -45,15 +54,17 @@ export default async function AdminPage() {
         totalOrdersThisWeek: 0,
         totalActiveUsersThisWeek: 0,
       }}
-      tenants={tenantsR.status === "fulfilled" ? tenantsR.value : []}
+      tenants={tenants}
       revenue={revenueR.status === "fulfilled" ? revenueR.value : {
         pedidos: { today: 0, last7d: 0, last30d: 0, total: 0 },
         ventasRapidas: { today: 0, last7d: 0, last30d: 0, total: 0 },
       }}
       trend={trendR.status === "fulfilled" ? trendR.value : []}
-      activeDevicesCount={activeDevicesCountR.status === "fulfilled" ? activeDevicesCountR.value : 0}
+      activeDevicesCount={activeDevicesCount}
       devicesByTenant={devicesByTenantR.status === "fulfilled" ? devicesByTenantR.value : []}
       activeDevices={activeDevicesR.status === "fulfilled" ? activeDevicesR.value : []}
+      alerts={alerts}
+      activity={activity}
     />
   );
 }

@@ -16,6 +16,7 @@ const MIGRATIONS = [
   '0007_fix_admin_list_tenants_ambiguous.sql',
   '0008_admin_revenue_trend.sql',
   '0009_device_sessions.sql',
+  '0010_admin_recent_activity.sql',
 ];
 
 console.log(`🚀 Applying ${MIGRATIONS.length} migrations in order...\n`);

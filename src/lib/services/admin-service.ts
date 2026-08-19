@@ -390,3 +390,94 @@ export async function listActiveDevices(
     firstSeen: String(row.first_seen),
   }));
 }
+
+export type RecentActivity = {
+  ts: string;
+  eventType: "pedido" | "venta_rapida";
+  tenantId: string;
+  description: string;
+  amount: number;
+};
+
+export async function getRecentActivity(
+  limit = 10,
+): Promise<RecentActivity[]> {
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.rpc(
+    "admin_recent_activity" as never,
+    { p_limit: limit } as never,
+  );
+  if (error) {
+    throw new Error(`getRecentActivity failed: ${error.message}`);
+  }
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    ts: String(row.ts),
+    eventType: row.event_type === "venta_rapida" ? "venta_rapida" : "pedido",
+    tenantId: String(row.tenant_id),
+    description: String(row.description ?? ""),
+    amount: Number(row.amount ?? 0),
+  }));
+}
+
+export type AdminAlert = {
+  id: string;
+  severity: "warning" | "info" | "success";
+  message: string;
+  href?: string;
+};
+
+export function buildAlerts(
+  tenants: TenantWithStats[],
+  activeDevicesCount: number,
+): AdminAlert[] {
+  const alerts: AdminAlert[] = [];
+  const now = Date.now();
+  const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+
+  for (const t of tenants) {
+    if (t.lastActivity) {
+      const last = new Date(t.lastActivity).getTime();
+      if (now - last > sevenDaysMs) {
+        alerts.push({
+          id: `inactive-${t.id}`,
+          severity: "warning",
+          message: `${t.name} sin actividad hace 7+ días`,
+          href: `/admin/tenants/${t.id}`,
+        });
+      }
+    } else {
+      alerts.push({
+        id: `noactivity-${t.id}`,
+        severity: "info",
+        message: `${t.name} nunca tuvo actividad`,
+        href: `/admin/tenants/${t.id}`,
+      });
+    }
+    if (t.plan === "free" && t.userCount >= 2) {
+      alerts.push({
+        id: `free-manyusers-${t.id}`,
+        severity: "info",
+        message: `${t.name} en plan Free con ${t.userCount} usuarios`,
+        href: `/admin/tenants/${t.id}`,
+      });
+    }
+    if (t.status === "suspended") {
+      alerts.push({
+        id: `suspended-${t.id}`,
+        severity: "warning",
+        message: `${t.name} está suspendido`,
+        href: `/admin/tenants/${t.id}`,
+      });
+    }
+  }
+
+  if (activeDevicesCount === 0 && tenants.length > 0) {
+    alerts.push({
+      id: "no-devices",
+      severity: "info",
+      message: "Ningún dispositivo activo en los últimos 5 min",
+    });
+  }
+
+  return alerts;
+}

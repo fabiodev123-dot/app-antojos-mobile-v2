@@ -30,9 +30,13 @@ import type {
   RevenueTrendPoint,
   ActiveDevice,
   DevicesByTenant,
+  AdminAlert,
+  RecentActivity,
 } from "@/lib/services/admin-service";
 import { RevenueTrendCard } from "@/components/features/revenue-trend-card";
 import { DevicesCard } from "@/components/features/devices-card";
+import { AlertsBanner } from "@/components/features/alerts-banner";
+import { ActivityFeed } from "@/components/features/activity-feed";
 
 const STATUS_LABEL: Record<TenantStatus, string> = {
   active: "Activo",
@@ -66,6 +70,8 @@ export function AdminDashboardClient({
   activeDevicesCount,
   devicesByTenant,
   activeDevices,
+  alerts,
+  activity,
 }: {
   stats: GlobalStats;
   tenants: TenantWithStats[];
@@ -74,6 +80,8 @@ export function AdminDashboardClient({
   activeDevicesCount: number;
   devicesByTenant: DevicesByTenant[];
   activeDevices: ActiveDevice[];
+  alerts: AdminAlert[];
+  activity: RecentActivity[];
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TenantStatus | "all">("all");
@@ -92,6 +100,7 @@ export function AdminDashboardClient({
 
   return (
     <div className="space-y-6">
+      {alerts.length > 0 && <AlertsBanner alerts={alerts} />}
       {/* KPI ROW */}
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <KPI
@@ -171,9 +180,12 @@ export function AdminDashboardClient({
         />
       </section>
 
-      {/* REVENUE TREND */}
-      <section className="mt-4">
-        <RevenueTrendCard data={trend} />
+      {/* REVENUE TREND + ACTIVITY */}
+      <section className="mt-4 grid gap-3 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <RevenueTrendCard data={trend} />
+        </div>
+        <ActivityFeed activity={activity} tenants={tenants} />
       </section>
 
       {/* DEVICES */}
