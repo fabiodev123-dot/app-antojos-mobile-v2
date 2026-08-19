@@ -50,7 +50,7 @@ export async function getCurrentSuperAdminOrNull(): Promise<SuperAdminContext | 
   const { data, error } = await supabase
     .from("super_admins" as never)
     .select("id, created_at")
-    .eq("id", user.id)
+    .eq("user_id", user.id)
     .single() as { data: { id: string; created_at: string } | null; error: unknown };
 
   if (error || !data) return null;

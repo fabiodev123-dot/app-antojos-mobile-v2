@@ -60,7 +60,7 @@ export async function middleware(request: NextRequest) {
   const { data: superAdmin } = await supabase
     .from("super_admins" as never)
     .select("id")
-    .eq("id", user.id)
+    .eq("user_id", user.id)
     .single() as { data: { id: string } | null };
 
   if (!superAdmin) {
