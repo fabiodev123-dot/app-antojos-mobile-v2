@@ -132,11 +132,11 @@ export async function removeTenantUserAction(
   const admin = createSupabaseAdminClient();
   const { tenantId, userId } = parsed.data;
 
-  const { data: owners, error: ownersError } = await admin
+  const { data: owners, error: ownersError } = (await admin
     .from("tenant_users" as never)
     .select("user_id, role")
     .eq("tenant_id", tenantId)
-    .eq("role", "owner");
+    .eq("role", "owner")) as { data: { user_id: string; role: string }[] | null; error: { message: string } | null };
 
   if (ownersError) {
     return { ok: false, error: ownersError.message };
