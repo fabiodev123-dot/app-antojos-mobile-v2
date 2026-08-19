@@ -7,6 +7,7 @@ import { requireSuperAdmin } from "@/lib/auth/context";
 import { getTenantDetail } from "@/lib/services/admin-service";
 import { formatFechaLarga, formatPrecio } from "@/lib/format";
 import { UsersList, RecentOrdersTable, OrdersBarChart } from "./tenant-detail-components";
+import { TenantSettingsCard } from "./tenant-settings-card";
 
 const STATUS_LABEL = {
   active: "Activo",
@@ -110,6 +111,15 @@ export default async function TenantDetailPage({
         {/* CHART */}
         <div className="mt-4">
           <OrdersBarChart data={tenant.ordersByDay} />
+        </div>
+
+        {/* SETTINGS (status + plan) */}
+        <div className="mt-4">
+          <TenantSettingsCard
+            tenantId={tenant.id}
+            initialStatus={tenant.status}
+            initialPlan={tenant.plan}
+          />
         </div>
 
         {/* USERS + ORDERS */}
