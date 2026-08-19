@@ -8,6 +8,7 @@ import { getTenantDetail } from "@/lib/services/admin-service";
 import { formatFechaLarga, formatPrecio } from "@/lib/format";
 import { UsersList, RecentOrdersTable, OrdersBarChart } from "./tenant-detail-components";
 import { TenantSettingsCard } from "./tenant-settings-card";
+import { UsersManagement } from "./users-management";
 
 const STATUS_LABEL = {
   active: "Activo",
@@ -124,7 +125,7 @@ export default async function TenantDetailPage({
 
         {/* USERS + ORDERS */}
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <UsersList users={tenant.users} />
+          <UsersManagement tenantId={tenant.id} users={tenant.users} />
           <RecentOrdersTable orders={tenant.recentOrders} />
         </div>
 
