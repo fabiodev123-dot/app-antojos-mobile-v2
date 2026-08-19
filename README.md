@@ -61,6 +61,27 @@ npm run dev
 
 Abrí [http://localhost:3000](http://localhost:3000) en el navegador. La app carga con datos mock (32 productos, categorías, etc.).
 
+### Crear el primer super admin (panel `/admin`)
+
+El middleware protege `/admin/*` y `loginAction` exige que el user esté en `public.super_admins`. **No hay admin pre-creado** — lo creás vos una sola vez con `service_role`:
+
+```bash
+# 1. Asegurate de tener en .env.local:
+#    NEXT_PUBLIC_SUPABASE_URL=...
+#    NEXT_PUBLIC_SUPABASE_ANON_KEY=... (o PUBLISHABLE_KEY)
+#    SUPABASE_SERVICE_ROLE_KEY=...   # ⚠️ NUNCA exponer al cliente
+
+# 2. Corré las migrations si todavía no lo hiciste
+npm run db:push   # o el flujo Drizzle que uses
+
+# 3. Creá el primer admin (idempotente)
+npm run admin:create -- admin@antojos.com "TuPassword123!"
+```
+
+El script (`scripts/create-admin.ts`) usa `supabase.auth.admin.createUser()` + `INSERT INTO super_admins`. Es seguro correrlo varias veces: si el email ya existe, solo asegura la membresía. Si ya es super admin, no hace nada.
+
+Después andá a [http://localhost:3000/login](http://localhost:3000/login) (no `/admin/login` — el middleware redirige ahí si no hay sesión).
+
 ### Build de producción
 
 ```bash

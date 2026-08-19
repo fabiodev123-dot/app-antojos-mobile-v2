@@ -18,6 +18,7 @@ import {
   gastosRepository,
   pedidosRepository,
   productosRepository,
+  ventasRapidasRepository,
 } from "@/lib/repositories";
 import { useRepositoryList } from "@/hooks/use-repository";
 import { ShellHeader, PageHeader } from "@/components/layout/shell-header";
@@ -25,6 +26,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button-link";
 import { formatHora, formatPrecio, hoy } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { WeeklySummary } from "@/components/features/weekly-summary";
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -39,15 +41,21 @@ export default function HomePage() {
   const productos = useRepositoryList(productosRepository);
   const clientes = useRepositoryList(clientesRepository);
   const gastos = useRepositoryList(gastosRepository);
+  const ventasRapidas = useRepositoryList(ventasRapidasRepository);
 
   const today = hoy();
   const pedidosHoy = pedidos.filter((p) => p.fecha === today);
   const pedidosActivos = pedidos.filter(
     (p) => p.estado === "pendiente" || p.estado === "preparando",
   );
+  // ventasHoy = pedidos cerrados del día + ventas rápidas del día.
+  // Centralizado en lib/utils/ventas para que cierre y resumen semanal
+  // usen la misma regla.
+  const ventasRapidasHoy = ventasRapidas.filter((v) => v.fecha === today);
   const ventasHoy = pedidosHoy
     .filter((p) => p.estado === "entregado" || p.estado === "listo")
-    .reduce((sum, p) => sum + p.total, 0);
+    .reduce((sum, p) => sum + p.total, 0)
+    + ventasRapidasHoy.reduce((sum, v) => sum + v.monto, 0);
   const gastosHoy = gastos
     .filter((g) => g.fecha === today)
     .reduce((sum, g) => sum + g.monto, 0);
@@ -263,6 +271,8 @@ export default function HomePage() {
             <Mini label="Clientes" value={clientes.length} />
           </CardContent>
         </Card>
+
+        <WeeklySummary />
       </main>
     </>
   );

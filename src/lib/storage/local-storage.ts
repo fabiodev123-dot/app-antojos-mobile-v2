@@ -76,6 +76,7 @@ export const STORAGE_KEYS = {
   movimientosStock: "movimientos_stock",
   gastos: "gastos",
   cierres: "cierres",
+  ventasRapidas: "ventas_rapidas",
   counters: "counters",
   config: "config",
   seeded: "seeded_v7",

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Mail, MessageCircle, TrendingUp, TrendingDown, Scale, MoonStar, Save, Plus, Trash2, Loader2, FileText, FileSpreadsheet, Boxes, ShoppingCart, AlertTriangle } from "lucide-react";
+import { Mail, MessageCircle, TrendingUp, TrendingDown, Scale, MoonStar, Save, Plus, Trash2, Loader2, FileText, FileSpreadsheet, Boxes, ShoppingCart, AlertTriangle, Zap } from "lucide-react";
 import {
   cierresRepository,
   gastosRepository,
   ingredientesRepository,
   pedidosRepository,
   productosRepository,
+  ventasRapidasRepository,
 } from "@/lib/repositories";
 import { useRepositoryList } from "@/hooks/use-repository";
 import { ShellHeader } from "@/components/layout/shell-header";
@@ -45,6 +46,7 @@ import {
 } from "@/lib/schemas";
 import { toast } from "sonner";
 import type { CategoriaGasto } from "@/lib/types";
+import { VentasRapidasManager } from "@/components/features/ventas-rapidas-manager";
 
 export default function CierrePage() {
   const cierres = useRepositoryList(cierresRepository);
@@ -52,6 +54,7 @@ export default function CierrePage() {
   const pedidos = useRepositoryList(pedidosRepository);
   const ingredientes = useRepositoryList(ingredientesRepository);
   const productos = useRepositoryList(productosRepository);
+  const ventasRapidas = useRepositoryList(ventasRapidasRepository);
 
   const [showGastoDialog, setShowGastoDialog] = useState(false);
   const [generating, setGenerating] = useState<"pdf" | "xlsx" | null>(null);
@@ -59,8 +62,14 @@ export default function CierrePage() {
   const today = hoy();
   const pedidosHoy = pedidos.filter((p) => p.fecha === today);
   const gastosHoy = gastos.filter((g) => g.fecha === today);
+  const ventasRapidasHoy = ventasRapidas.filter((v) => v.fecha === today);
 
-  const data: CierreData = { fecha: today, pedidos: pedidosHoy, gastos: gastosHoy };
+  const data: CierreData = {
+    fecha: today,
+    pedidos: pedidosHoy,
+    gastos: gastosHoy,
+    ventasRapidas: ventasRapidasHoy,
+  };
   const resumen = buildCierreResumen(data);
 
   const ultimoCierre = [...cierres].sort((a, b) => (a.fecha > b.fecha ? -1 : 1))[0];
@@ -329,6 +338,8 @@ export default function CierrePage() {
             )}
           </CardContent>
         </Card>
+
+        <VentasRapidasManager ventas={ventasRapidasHoy} />
 
         <Card className="overflow-hidden p-0 card-elevated">
           <CardHeader className="border-b border-border/60 bg-muted/30 p-3.5">
