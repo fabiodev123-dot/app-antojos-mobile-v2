@@ -57,18 +57,17 @@ export default async function TenantDetailPage({
   const StatusIcon = STATUS_ICON[tenant.status];
 
   return (
-    <main className="bg-background min-h-svh">
-      <div className="mx-auto max-w-7xl px-4 py-6">
-        {/* BACK + TITLE */}
-        <div className="mb-4">
-          <Link
-            href="/admin"
-            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm"
-          >
-            <ArrowLeft className="size-3.5" />
-            Volver al panel
-          </Link>
-        </div>
+    <div className="space-y-4">
+      {/* BACK */}
+      <div>
+        <Link
+          href="/admin"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm"
+        >
+          <ArrowLeft className="size-3.5" />
+          Volver al panel
+        </Link>
+      </div>
 
         {/* TENANT HEADER */}
         <Card className="mb-4 p-0">
@@ -141,8 +140,7 @@ export default async function TenantDetailPage({
             <Field label="Última actividad" value={tenant.lastActivity ? formatFechaLarga(tenant.lastActivity) : "—"} />
           </CardContent>
         </Card>
-      </div>
-    </main>
+    </div>
   );
 }
 
