@@ -31,10 +31,12 @@ const PLAN_OPTIONS: Array<{ value: Plan; label: string }> = [
 
 export function TenantSettingsCard({
   tenantId,
+  tenantName,
   initialStatus,
   initialPlan,
 }: {
   tenantId: string;
+  tenantName: string;
   initialStatus: Status;
   initialPlan: Plan;
 }) {
@@ -50,7 +52,11 @@ export function TenantSettingsCard({
   function handleSave() {
     setFeedback(null);
     startTransition(async () => {
-      const result = await updateTenantAction(tenantId, { status, plan });
+      const result = await updateTenantAction(tenantId, { status, plan }, {
+        status: initialStatus,
+        plan: initialPlan,
+        name: tenantName,
+      });
       if (result.ok) {
         setFeedback({ ok: true, msg: "Cambios guardados" });
       } else {

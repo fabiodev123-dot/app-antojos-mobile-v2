@@ -36,9 +36,11 @@ type Role = (typeof ROLE_OPTIONS)[number]["value"];
 
 export function UsersManagement({
   tenantId,
+  tenantName,
   users,
 }: {
   tenantId: string;
+  tenantName: string;
   users: TenantUser[];
 }) {
   const [email, setEmail] = useState("");
@@ -53,7 +55,10 @@ export function UsersManagement({
     if (!email || isPending) return;
     setFeedback(null);
     startTransition(async () => {
-      const result = await addTenantUserAction({ tenantId, email, role });
+      const result = await addTenantUserAction(
+        { tenantId, email, role },
+        tenantName,
+      );
       if (result.ok) {
         setFeedback({ ok: true, msg: result.message });
         setEmail("");
@@ -68,7 +73,10 @@ export function UsersManagement({
     setFeedback(null);
     setRemovingId(userId);
     startTransition(async () => {
-      const result = await removeTenantUserAction({ tenantId, userId });
+      const result = await removeTenantUserAction(
+        { tenantId, userId },
+        tenantName,
+      );
       setRemovingId(null);
       if (result.ok) {
         setFeedback({ ok: true, msg: result.message });

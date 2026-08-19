@@ -1,9 +1,13 @@
 /**
- * Factory de repositorios — elige local (localStorage) o Supabase (API routes).
+ * Factory de repositorios — elige Supabase (default) o local (localStorage).
  *
- * Por default usa localStorage (comportamiento actual de la app).
- * Para activar Supabase setear en Vercel:
- *   NEXT_PUBLIC_DATA_SOURCE=supabase
+ * Default: Supabase (si hay env vars configuradas). Esto permite que el
+ * Monitor Maestro vea toda la data de la app en tiempo real.
+ *
+ * Para forzar localStorage en desarrollo (sin Supabase corriendo):
+ *   NEXT_PUBLIC_DATA_SOURCE=local
+ *
+ * Env vars requeridas para Supabase:
  *   NEXT_PUBLIC_SUPABASE_URL=https://...
  *   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=... (o NEXT_PUBLIC_SUPABASE_ANON_KEY)
  *   DATABASE_URL=postgresql://... (server-side only, para Drizzle en API routes)
@@ -30,7 +34,7 @@ import type {
 import type { Repository } from "@/lib/repositories/types";
 
 const useSupabase =
-  process.env.NEXT_PUBLIC_DATA_SOURCE === "supabase" &&
+  process.env.NEXT_PUBLIC_DATA_SOURCE !== "local" &&
   !!process.env.NEXT_PUBLIC_SUPABASE_URL &&
   !!(process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);

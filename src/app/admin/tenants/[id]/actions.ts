@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireSuperAdmin } from "@/lib/auth/context";
+import { logAdminAction } from "@/lib/services/audit-log";
 
 const updateTenantSchema = z.object({
   status: z.enum(["active", "suspended", "trial"]),
@@ -19,8 +20,9 @@ export type UpdateTenantResult =
 export async function updateTenantAction(
   tenantId: string,
   input: UpdateTenantInput,
+  previous?: { status: string; plan: string; name: string },
 ): Promise<UpdateTenantResult> {
-  await requireSuperAdmin();
+  const ctx = await requireSuperAdmin();
 
   const parsed = updateTenantSchema.safeParse(input);
   if (!parsed.success) {
@@ -43,6 +45,31 @@ export async function updateTenantAction(
 
   if (error) {
     return { ok: false, error: error.message };
+  }
+
+  if (previous) {
+    if (previous.status !== parsed.data.status) {
+      await logAdminAction({
+        superAdminId: ctx.id,
+        superAdminEmail: ctx.email,
+        action: "tenant.status_changed",
+        targetType: "tenant",
+        targetId: tenantId,
+        targetLabel: previous.name,
+        metadata: { from: previous.status, to: parsed.data.status },
+      });
+    }
+    if (previous.plan !== parsed.data.plan) {
+      await logAdminAction({
+        superAdminId: ctx.id,
+        superAdminEmail: ctx.email,
+        action: "tenant.plan_changed",
+        targetType: "tenant",
+        targetId: tenantId,
+        targetLabel: previous.name,
+        metadata: { from: previous.plan, to: parsed.data.plan },
+      });
+    }
   }
 
   revalidatePath("/admin");

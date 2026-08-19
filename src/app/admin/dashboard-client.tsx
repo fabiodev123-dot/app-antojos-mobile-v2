@@ -32,6 +32,7 @@ import type {
   DevicesByTenant,
   AdminAlert,
   RecentActivity,
+  AuditLogEntry,
 } from "@/lib/services/admin-service";
 import { RevenueTrendCard } from "@/components/features/revenue-trend-card";
 import { DevicesCard } from "@/components/features/devices-card";
@@ -72,6 +73,7 @@ export function AdminDashboardClient({
   activeDevices,
   alerts,
   activity,
+  auditLog,
 }: {
   stats: GlobalStats;
   tenants: TenantWithStats[];
@@ -82,6 +84,7 @@ export function AdminDashboardClient({
   activeDevices: ActiveDevice[];
   alerts: AdminAlert[];
   activity: RecentActivity[];
+  auditLog: AuditLogEntry[];
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TenantStatus | "all">("all");
@@ -185,7 +188,11 @@ export function AdminDashboardClient({
         <div className="lg:col-span-2">
           <RevenueTrendCard data={trend} />
         </div>
-        <ActivityFeed activity={activity} tenants={tenants} />
+        <ActivityFeed
+          activity={activity}
+          auditLog={auditLog}
+          tenants={tenants}
+        />
       </section>
 
       {/* DEVICES */}

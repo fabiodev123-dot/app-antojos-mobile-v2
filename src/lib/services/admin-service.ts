@@ -481,3 +481,40 @@ export function buildAlerts(
 
   return alerts;
 }
+
+export type AuditLogEntry = {
+  id: string;
+  superAdminEmail: string;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  targetLabel: string | null;
+  metadata: Record<string, unknown> | null;
+  createdAt: string;
+};
+
+export async function getAuditLogRecent(
+  limit = 20,
+): Promise<AuditLogEntry[]> {
+  const admin = createSupabaseAdminClient();
+  const { data, error } = await admin.rpc(
+    "admin_audit_log_recent" as never,
+    { p_limit: limit } as never,
+  );
+  if (error) {
+    throw new Error(`getAuditLogRecent failed: ${error.message}`);
+  }
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    id: String(row.id),
+    superAdminEmail: String(row.super_admin_email ?? ""),
+    action: String(row.action),
+    targetType: String(row.target_type),
+    targetId: row.target_id ? String(row.target_id) : null,
+    targetLabel: row.target_label ? String(row.target_label) : null,
+    metadata:
+      row.metadata && typeof row.metadata === "object"
+        ? (row.metadata as Record<string, unknown>)
+        : null,
+    createdAt: String(row.created_at),
+  }));
+}

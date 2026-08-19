@@ -120,6 +120,7 @@ export default async function TenantDetailPage({
         <div className="mt-4">
           <TenantSettingsCard
             tenantId={tenant.id}
+            tenantName={tenant.name}
             initialStatus={tenant.status}
             initialPlan={tenant.plan}
           />
@@ -127,7 +128,11 @@ export default async function TenantDetailPage({
 
         {/* USERS + ORDERS */}
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
-          <UsersManagement tenantId={tenant.id} users={tenant.users} />
+          <UsersManagement
+            tenantId={tenant.id}
+            tenantName={tenant.name}
+            users={tenant.users}
+          />
           <RecentOrdersTable orders={tenant.recentOrders} />
         </div>
 

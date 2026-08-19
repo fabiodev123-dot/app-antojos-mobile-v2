@@ -8,6 +8,7 @@ import {
   getDevicesByTenant,
   listActiveDevices,
   getRecentActivity,
+  getAuditLogRecent,
   buildAlerts,
 } from "@/lib/services/admin-service";
 import { AdminDashboardClient } from "./dashboard-client";
@@ -24,6 +25,7 @@ export default async function AdminPage() {
     getDevicesByTenant(),
     listActiveDevices(),
     getRecentActivity(12),
+    getAuditLogRecent(15),
   ]);
 
   const [
@@ -35,11 +37,13 @@ export default async function AdminPage() {
     devicesByTenantR,
     activeDevicesR,
     activityR,
+    auditLogR,
   ] = results;
 
   const tenants = tenantsR.status === "fulfilled" ? tenantsR.value : [];
   const activeDevicesCount = activeDevicesCountR.status === "fulfilled" ? activeDevicesCountR.value : 0;
   const activity = activityR.status === "fulfilled" ? activityR.value : [];
+  const auditLog = auditLogR.status === "fulfilled" ? auditLogR.value : [];
   const alerts = buildAlerts(tenants, activeDevicesCount);
 
   return (
@@ -65,6 +69,7 @@ export default async function AdminPage() {
       activeDevices={activeDevicesR.status === "fulfilled" ? activeDevicesR.value : []}
       alerts={alerts}
       activity={activity}
+      auditLog={auditLog}
     />
   );
 }

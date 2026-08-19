@@ -4,6 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 import { requireSuperAdmin } from "@/lib/auth/context";
+import { logAdminAction } from "@/lib/services/audit-log";
 
 const addUserSchema = z.object({
   tenantId: z.string().min(1),
@@ -39,8 +40,9 @@ async function findUserByEmail(
 
 export async function addTenantUserAction(
   input: AddUserInput,
+  tenantLabel?: string,
 ): Promise<UserActionResult> {
-  await requireSuperAdmin();
+  const ctx = await requireSuperAdmin();
 
   const parsed = addUserSchema.safeParse(input);
   if (!parsed.success) {
@@ -81,6 +83,15 @@ export async function addTenantUserAction(
         error: `Ya era miembro, pero no se pudo actualizar el rol: ${updateError.message}`,
       };
     }
+    await logAdminAction({
+      superAdminId: ctx.id,
+      superAdminEmail: ctx.email,
+      action: "user.role_changed",
+      targetType: "user",
+      targetId: user.id,
+      targetLabel: email,
+      metadata: { tenantId, tenantLabel, role },
+    });
     revalidatePath(`/admin/tenants/${tenantId}`);
     return {
       ok: true,
@@ -92,14 +103,25 @@ export async function addTenantUserAction(
     return { ok: false, error: insertError.message };
   }
 
+  await logAdminAction({
+    superAdminId: ctx.id,
+    superAdminEmail: ctx.email,
+    action: "user.added_to_tenant",
+    targetType: "user",
+    targetId: user.id,
+    targetLabel: email,
+    metadata: { tenantId, tenantLabel, role },
+  });
+
   revalidatePath(`/admin/tenants/${tenantId}`);
   return { ok: true, message: "Usuario agregado al tenant." };
 }
 
 export async function removeTenantUserAction(
   input: RemoveUserInput,
+  tenantLabel?: string,
 ): Promise<UserActionResult> {
-  await requireSuperAdmin();
+  const ctx = await requireSuperAdmin();
 
   const parsed = removeUserSchema.safeParse(input);
   if (!parsed.success) {
@@ -140,6 +162,16 @@ export async function removeTenantUserAction(
   if (error) {
     return { ok: false, error: error.message };
   }
+
+  await logAdminAction({
+    superAdminId: ctx.id,
+    superAdminEmail: ctx.email,
+    action: "user.removed_from_tenant",
+    targetType: "user",
+    targetId: userId,
+    targetLabel: undefined,
+    metadata: { tenantId, tenantLabel },
+  });
 
   revalidatePath(`/admin/tenants/${tenantId}`);
   return { ok: true, message: "Usuario eliminado del tenant." };
