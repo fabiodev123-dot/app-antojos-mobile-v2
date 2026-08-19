@@ -13,15 +13,7 @@ import { AdminDashboardClient } from "./dashboard-client";
 export default async function AdminPage() {
   await requireSuperAdmin();
 
-  const [
-    stats,
-    tenants,
-    revenue,
-    trend,
-    activeDevicesCount,
-    devicesByTenant,
-    activeDevices,
-  ] = await Promise.all([
+  const results = await Promise.allSettled([
     getTenantsWithStats(),
     getGlobalStats(),
     getGlobalRevenue(),
@@ -31,15 +23,37 @@ export default async function AdminPage() {
     listActiveDevices(),
   ]);
 
+  const [
+    tenantsR,
+    statsR,
+    revenueR,
+    trendR,
+    activeDevicesCountR,
+    devicesByTenantR,
+    activeDevicesR,
+  ] = results;
+
   return (
     <AdminDashboardClient
-      stats={stats}
-      tenants={tenants}
-      revenue={revenue}
-      trend={trend}
-      activeDevicesCount={activeDevicesCount}
-      devicesByTenant={devicesByTenant}
-      activeDevices={activeDevices}
+      stats={statsR.status === "fulfilled" ? statsR.value : {
+        totalTenants: 0,
+        activeTenants: 0,
+        trialTenants: 0,
+        suspendedTenants: 0,
+        totalUsers: 0,
+        totalOrdersToday: 0,
+        totalOrdersThisWeek: 0,
+        totalActiveUsersThisWeek: 0,
+      }}
+      tenants={tenantsR.status === "fulfilled" ? tenantsR.value : []}
+      revenue={revenueR.status === "fulfilled" ? revenueR.value : {
+        pedidos: { today: 0, last7d: 0, last30d: 0, total: 0 },
+        ventasRapidas: { today: 0, last7d: 0, last30d: 0, total: 0 },
+      }}
+      trend={trendR.status === "fulfilled" ? trendR.value : []}
+      activeDevicesCount={activeDevicesCountR.status === "fulfilled" ? activeDevicesCountR.value : 0}
+      devicesByTenant={devicesByTenantR.status === "fulfilled" ? devicesByTenantR.value : []}
+      activeDevices={activeDevicesR.status === "fulfilled" ? activeDevicesR.value : []}
     />
   );
 }

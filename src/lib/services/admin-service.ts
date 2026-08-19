@@ -29,27 +29,40 @@ export type TenantWithStats = {
  * 1 query que joinea tenants + tenant_users + pedidos.
  */
 export async function getTenantsWithStats(): Promise<TenantWithStats[]> {
-  const admin = createSupabaseAdminClient();
+  try {
+    const admin = createSupabaseAdminClient();
+    const { data, error } = await admin.rpc("admin_list_tenants_with_stats");
 
-  // Query agregada. Devuelve tenants + métricas.
-  const { data, error } = await admin.rpc("admin_list_tenants_with_stats");
+    if (error) {
+      console.error("[admin-service] getTenantsWithStats RPC error:", error);
+      return [];
+    }
 
-  if (error) {
-    throw new Error(`getTenantsWithStats failed: ${error.message}`);
+    if (!Array.isArray(data)) {
+      console.error(
+        "[admin-service] getTenantsWithStats: data is not an array, got:",
+        typeof data,
+        data,
+      );
+      return [];
+    }
+
+    return data.map((row: Record<string, unknown>) => ({
+      id: String(row.id),
+      slug: String(row.slug),
+      name: String(row.name),
+      status: row.status as TenantStatus,
+      plan: row.plan as TenantPlan,
+      createdAt: String(row.created_at),
+      updatedAt: String(row.updated_at),
+      userCount: Number(row.user_count ?? 0),
+      todayOrders: Number(row.today_orders ?? 0),
+      lastActivity: row.last_activity ? String(row.last_activity) : null,
+    }));
+  } catch (e) {
+    console.error("[admin-service] getTenantsWithStats threw:", e);
+    return [];
   }
-
-  return (data ?? []).map((row: Record<string, unknown>) => ({
-    id: String(row.id),
-    slug: String(row.slug),
-    name: String(row.name),
-    status: row.status as TenantStatus,
-    plan: row.plan as TenantPlan,
-    createdAt: String(row.created_at),
-    updatedAt: String(row.updated_at),
-    userCount: Number(row.user_count ?? 0),
-    todayOrders: Number(row.today_orders ?? 0),
-    lastActivity: row.last_activity ? String(row.last_activity) : null,
-  }));
 }
 
 /**
