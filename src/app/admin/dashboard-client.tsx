@@ -38,6 +38,7 @@ import { RevenueTrendCard } from "@/components/features/revenue-trend-card";
 import { DevicesCard } from "@/components/features/devices-card";
 import { AlertsBanner } from "@/components/features/alerts-banner";
 import { ActivityFeed } from "@/components/features/activity-feed";
+import { useRealtimeRefresh } from "@/hooks/use-realtime-refresh";
 
 const STATUS_LABEL: Record<TenantStatus, string> = {
   active: "Activo",
@@ -88,6 +89,15 @@ export function AdminDashboardClient({
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<TenantStatus | "all">("all");
+
+  useRealtimeRefresh([
+    "device_sessions",
+    "ventas_rapidas",
+    "pedidos",
+    "admin_audit_log",
+    "tenants",
+    "tenant_users",
+  ]);
 
   const filtered = tenants.filter((t) => {
     if (statusFilter !== "all" && t.status !== statusFilter) return false;
