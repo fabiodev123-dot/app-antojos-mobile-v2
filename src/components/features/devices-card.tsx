@@ -13,6 +13,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { formatFechaCorta, formatHora } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useTimeAgo } from "@/hooks/use-time-ago";
 import type { ActiveDevice, DevicesByTenant, TenantWithStats } from "@/lib/services/admin-service";
 
 const PLATFORM_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
