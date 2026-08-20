@@ -1,13 +1,13 @@
 "use server";
 
 /**
- * Login / logout server actions para tenant users (la app de Antojos).
+ * Login / logout server actions para la app de Antojos.
  *
  * - loginAction: signInWithPassword + redirect a /
  * - logoutAction: signOut + redirect a /login
  *
- * Validación con Zod. Errores se devuelven al client (no se lanzan).
- * Acepta solo tenant users: si la cuenta es de super admin, rechaza.
+ * Acepta cualquier user autenticado (tenant user o super admin). El super
+ * admin usa el selector de tenants del header para "actuar como" un tenant.
  */
 
 import { redirect } from "next/navigation";
@@ -48,19 +48,6 @@ export async function loginAction(
         error.message === "Invalid login credentials"
           ? "Email o contraseña incorrectos."
           : error.message,
-    };
-  }
-
-  const { data: superAdmin } = await supabase
-    .from("super_admins" as never)
-    .select("id")
-    .maybeSingle() as { data: { id: string } | null };
-
-  if (superAdmin) {
-    await supabase.auth.signOut();
-    return {
-      ok: false,
-      error: "Esta cuenta es de super admin. Ingresá desde /admin/login.",
     };
   }
 
