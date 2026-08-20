@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { UserPlus, Trash2, Loader2 } from "lucide-react";
+import { UserPlus, Trash2, Loader2, Copy, Check } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -23,6 +23,7 @@ import {
 import type { TenantUser } from "@/lib/services/admin-service";
 import {
   addTenantUserAction,
+  createTenantUserAction,
   removeTenantUserAction,
 } from "./user-actions";
 
@@ -50,10 +51,16 @@ export function UsersManagement({
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(
     null,
   );
+  const [created, setCreated] = useState<{
+    email: string;
+    password: string;
+  } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   function handleAdd() {
     if (!email || isPending) return;
     setFeedback(null);
+    setCreated(null);
     startTransition(async () => {
       const result = await addTenantUserAction(
         { tenantId, email, role },
@@ -66,6 +73,34 @@ export function UsersManagement({
         setFeedback({ ok: false, msg: result.error });
       }
     });
+  }
+
+  function handleCreate() {
+    if (!email || isPending) return;
+    setFeedback(null);
+    setCreated(null);
+    startTransition(async () => {
+      const result = await createTenantUserAction(
+        { tenantId, email, role },
+        tenantName,
+      );
+      if (result.ok) {
+        setCreated({ email: result.email, password: result.password });
+        setEmail("");
+      } else {
+        setFeedback({ ok: false, msg: result.error });
+      }
+    });
+  }
+
+  async function handleCopy(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setFeedback({ ok: false, msg: "No se pudo copiar al portapapeles." });
+    }
   }
 
   function handleRemove(userId: string) {
@@ -93,7 +128,7 @@ export function UsersManagement({
           Usuarios ({users.length})
         </CardTitle>
         <CardDescription className="text-xs">
-          El usuario debe estar registrado en auth.users antes de poder agregarlo.
+          Creá un usuario nuevo (genera password) o agregá uno existente.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4 p-4">
@@ -136,8 +171,45 @@ export function UsersManagement({
           </ul>
         )}
 
+        {created ? (
+          <div className="space-y-2 rounded-md border border-success/40 bg-success/10 p-3 text-xs">
+            <p className="font-semibold text-success">
+              ✓ Usuario creado: {created.email}
+            </p>
+            <p className="text-foreground/80">
+              Password (mostrada una sola vez, copiala ahora):
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 break-all rounded bg-background/80 p-2 font-mono text-[11px]">
+                {created.password}
+              </code>
+              <Button
+                type="button"
+                size="icon-sm"
+                variant="outline"
+                onClick={() => handleCopy(created.password)}
+                aria-label="Copiar password"
+              >
+                {copied ? (
+                  <Check className="size-3.5 text-success" />
+                ) : (
+                  <Copy className="size-3.5" />
+                )}
+              </Button>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setCreated(null)}
+            >
+              Cerrar
+            </Button>
+          </div>
+        ) : null}
+
         <div className="space-y-2 border-t border-border/60 pt-4">
-          <Label className="text-xs">Agregar usuario</Label>
+          <Label className="text-xs">Crear / agregar usuario</Label>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Input
               type="email"
@@ -149,7 +221,7 @@ export function UsersManagement({
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
-                  handleAdd();
+                  handleCreate();
                 }
               }}
             />
@@ -169,15 +241,32 @@ export function UsersManagement({
                 ))}
               </SelectContent>
             </Select>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
             <Button
               type="button"
-              onClick={handleAdd}
+              onClick={handleCreate}
               disabled={!email || isPending}
+              className="flex-1"
             >
               <UserPlus className="size-3.5" />
-              {isPending && removingId === null ? "Agregando…" : "Agregar"}
+              {isPending ? "Creando…" : "Crear nuevo (genera password)"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleAdd}
+              disabled={!email || isPending}
+              className="flex-1"
+            >
+              {isPending ? "Agregando…" : "Agregar existente"}
             </Button>
           </div>
+          <p className="text-muted-foreground text-[10px]">
+            "Crear" genera una password fuerte de 20 caracteres y muestra el
+            resultado una sola vez. "Agregar" usa un usuario que ya existe en
+            Supabase.
+          </p>
         </div>
 
         {feedback && (
