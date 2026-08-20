@@ -1,17 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, ChevronDown, Check } from "lucide-react";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
+import { Building2 } from "lucide-react";
 import { setActingTenant, clearActingTenant } from "@/lib/auth/acting";
 
 export type TenantOption = {
@@ -27,26 +18,21 @@ export function TenantSelector({
   activeActingId?: string | null;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
+  const [pending, startTransition] = useTransition();
 
-  async function pick(id: string) {
-    setBusy(true);
-    try {
-      await setActingTenant(id);
-      router.refresh();
-    } finally {
-      setBusy(false);
+  function handleChange(value: string) {
+    if (value === "__exit__") {
+      startTransition(async () => {
+        await clearActingTenant();
+        router.refresh();
+      });
+      return;
     }
-  }
-
-  async function exit() {
-    setBusy(true);
-    try {
-      await clearActingTenant();
+    if (!value) return;
+    startTransition(async () => {
+      await setActingTenant(value);
       router.refresh();
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   const active = activeActingId
@@ -54,50 +40,35 @@ export function TenantSelector({
     : null;
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={busy}
-          className="h-8 gap-1.5 px-2.5 text-xs"
-        >
-          <Building2 className="size-3.5" />
-          <span className="hidden sm:inline">
-            {active ? active.name : "Actuar como tenant"}
-          </span>
-          <ChevronDown className="size-3 opacity-70" />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-64">
-        <DropdownMenuLabel className="text-xs">
-          {active ? "Cambiar de tenant" : "Elegir tenant para actuar"}
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
+    <label
+      className={`inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-xs shadow-sm transition-colors hover:bg-accent/50 focus-within:ring-1 focus-within:ring-ring ${
+        pending ? "opacity-60" : ""
+      }`}
+    >
+      <Building2 className="size-3.5 shrink-0 opacity-70" />
+      <select
+        aria-label="Actuar como tenant"
+        disabled={pending}
+        value={active?.id ?? ""}
+        onChange={(e) => handleChange(e.target.value)}
+        className="h-full appearance-none bg-transparent pr-5 text-xs font-medium outline-none disabled:cursor-not-allowed"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23666'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E\")",
+          backgroundRepeat: "no-repeat",
+          backgroundPosition: "right 0.25rem center",
+          backgroundSize: "12px 12px",
+        }}
+      >
+        <option value="">Actuar como tenant…</option>
         {tenants.map((t) => (
-          <DropdownMenuItem
-            key={t.id}
-            disabled={busy}
-            onSelect={() => pick(t.id)}
-            className="flex items-center justify-between"
-          >
-            <span className="truncate">{t.name}</span>
-            {active?.id === t.id ? <Check className="size-3.5 opacity-70" /> : null}
-          </DropdownMenuItem>
+          <option key={t.id} value={t.id}>
+            {active?.id === t.id ? "✓ " : ""}
+            {t.name}
+          </option>
         ))}
-        {active ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              disabled={busy}
-              onSelect={exit}
-              className="text-destructive focus:text-destructive"
-            >
-              Salir del modo "act as"
-            </DropdownMenuItem>
-          </>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+        {active ? <option value="__exit__">— Salir del modo act as</option> : null}
+      </select>
+    </label>
   );
 }
