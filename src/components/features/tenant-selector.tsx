@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Building2 } from "lucide-react";
 import { setActingTenant, clearActingTenant } from "@/lib/auth/acting";
@@ -19,6 +19,14 @@ export function TenantSelector({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (activeActingId || tenants.length === 0) return;
+    startTransition(async () => {
+      await setActingTenant(tenants[0].id);
+      router.refresh();
+    });
+  }, [activeActingId, tenants, router]);
 
   function handleChange(value: string) {
     if (value === "__exit__") {

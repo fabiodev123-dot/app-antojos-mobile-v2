@@ -40,23 +40,12 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const superAdmin = await getCurrentSuperAdminOrNull();
   const cookieStore = await cookies();
-  let actingId = superAdmin
+  const actingId = superAdmin
     ? cookieStore.get("acting_tenant_id")?.value ?? null
     : null;
   const tenants = superAdmin
     ? (await getTenantsWithStats()).map((t) => ({ id: t.id, name: t.name }))
     : [];
-
-  if (superAdmin && !actingId && tenants.length > 0) {
-    cookieStore.set("acting_tenant_id", tenants[0].id, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24,
-    });
-    actingId = tenants[0].id;
-  }
 
   const topBar = (
     <>
