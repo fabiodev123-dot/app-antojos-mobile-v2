@@ -3,9 +3,10 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AppShell } from "@/components/layout/app-shell";
 import { ActingAsBanner } from "@/components/features/acting-as-banner";
-import { getCurrentSuperAdminOrNull } from "@/lib/auth/context";
+import { getCurrentSuperAdminOrNull, getCurrentUserOrNull } from "@/lib/auth/context";
 import { getTenantsWithStats } from "@/lib/services/admin-service";
 import { TenantSelector } from "@/components/features/tenant-selector";
+import { UserMenu } from "@/components/layout/user-menu";
 import { cookies } from "next/headers";
 
 const geistSans = Geist({
@@ -38,6 +39,7 @@ export const viewport: Viewport = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const user = await getCurrentUserOrNull();
   const superAdmin = await getCurrentSuperAdminOrNull();
   const cookieStore = await cookies();
   const actingId = superAdmin
@@ -54,6 +56,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         <div className="border-b border-border bg-background/85 backdrop-blur-xl">
           <div className="mx-auto flex h-10 max-w-6xl items-center justify-end gap-2 px-4">
             <TenantSelector tenants={tenants} activeActingId={actingId} />
+            <UserMenu email={user?.email ?? null} />
+          </div>
+        </div>
+      ) : user ? (
+        <div className="border-b border-border bg-background/85 backdrop-blur-xl">
+          <div className="mx-auto flex h-10 max-w-6xl items-center justify-end gap-2 px-4">
+            <UserMenu email={user.email} />
           </div>
         </div>
       ) : null}
