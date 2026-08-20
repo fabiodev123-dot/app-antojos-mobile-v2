@@ -2,37 +2,68 @@
  * API route específica para pedidos (1:N con pedido_items).
  *
  * Path: /api/db/pedidos
- * - GET sin query → list (cada pedido con items embebidos)
+ * - GET sin query → list (cada pedido con items embebidos, filtrado por tenant)
  * - GET ?id=X → get one (con items)
- * - POST body → create pedido + items (transacción)
+ * - POST body → create pedido + items (transacción, tenantId inyectado)
  * - PATCH ?id=X body → update pedido (NO items — el frontend los maneja aparte)
  * - DELETE ?id=X → delete (cascade a items)
  *
- * Items endpoint separado: /api/db/pedidos/items?pedidoId=X
+ * Items endpoint separado: /api/db/pedidos/items?pedidoId=X (TODO: agregar si se necesita).
+ *
+ * Multi-tenant:
+ * - `pedidos` requiere tenant_id (definido en ENTITIES_WITH_TENANT).
+ * - Tenant user → su tenantId del JWT.
+ * - Super admin → debe pasar `tenant_id` en el body.
+ * - GET filtra por tenant (excepto super admin).
  */
 import { type NextRequest, NextResponse } from "next/server";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { pedidos as pedidosTable, pedidoItems as pedidoItemsTable } from "@/lib/db/schema";
 import { newId, nowIso } from "@/lib/repositories/types";
+import { requireSession } from "@/lib/auth/session";
 
 export async function GET(req: NextRequest) {
-  // Esta ruta es estática (/api/db/pedidos), no tiene segmentos dinámicos.
-  // No destructuramos `params` porque viene como `undefined` en Next.js 16 +
-  // Turbopack cuando el path es 100% estático, y eso tira "Cannot destructure
-  // property 'entity' of undefined".
+  const auth = await requireSession();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const id = req.nextUrl.searchParams.get("id");
+  const filterTenant = req.nextUrl.searchParams.get("tenant_id");
+
   if (id) {
-    const pedidoRows = await db.select().from(pedidosTable).where(eq(pedidosTable.id, id)).limit(1);
+    const filters = [eq(pedidosTable.id, id)];
+    if (session.tenantId && !session.isSuperAdmin) {
+      filters.push(eq(pedidosTable.tenantId, session.tenantId));
+    } else if (session.isSuperAdmin && filterTenant) {
+      filters.push(eq(pedidosTable.tenantId, filterTenant));
+    }
+    const pedidoRows = await db
+      .select()
+      .from(pedidosTable)
+      .where(and(...filters))
+      .limit(1);
     const pedido = pedidoRows[0];
     if (!pedido) return NextResponse.json({ error: "Not found" }, { status: 404 });
     const items = await db.select().from(pedidoItemsTable).where(eq(pedidoItemsTable.pedidoId, id));
     return NextResponse.json({ ...pedido, items });
   }
 
-  // List con items embebidos
-  const allPedidos = await db.select().from(pedidosTable);
+  // List con filtro tenant (si aplica).
+  let allPedidos;
+  if (session.tenantId && !session.isSuperAdmin) {
+    allPedidos = await db
+      .select()
+      .from(pedidosTable)
+      .where(eq(pedidosTable.tenantId, session.tenantId));
+  } else if (session.isSuperAdmin && filterTenant) {
+    allPedidos = await db
+      .select()
+      .from(pedidosTable)
+      .where(eq(pedidosTable.tenantId, filterTenant));
+  } else {
+    allPedidos = await db.select().from(pedidosTable);
+  }
   if (allPedidos.length === 0) return NextResponse.json([]);
   const ids = allPedidos.map((p) => p.id);
   const allItems = await db
@@ -51,23 +82,47 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  // Esta ruta es estática, no destructuramos params (ver GET más arriba).
+  const auth = await requireSession();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const body = await req.json();
   const { items = [], ...pedidoFields } = body;
   const now = new Date();
   const pedidoId = newId();
 
+  // Resolver tenantId: tenant user → JWT, super admin → body, ninguno → 403.
+  let tenantId: string | null = session.tenantId;
+  if (!tenantId && session.isSuperAdmin) {
+    tenantId =
+      (typeof body.tenant_id === "string" && body.tenant_id) ||
+      (typeof body.tenantId === "string" && body.tenantId) ||
+      null;
+  }
+  if (!tenantId) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Sin tenant en JWT. Pasá tenant_id en el body (super admin) o usá un tenant user.",
+      },
+      { status: 403 },
+    );
+  }
+
   // El body viene con timestamps como ISO strings (formato del frontend).
   // Drizzle espera Date objects para columnas timestamptz — convertimos acá.
   const pedidoRow = {
     ...pedidoFields,
     id: pedidoId,
+    tenantId,
     createdAt: now,
     updatedAt: now,
     cerradoAt: pedidoFields.cerradoAt ? new Date(pedidoFields.cerradoAt) : null,
     entregadoAt: pedidoFields.entregadoAt ? new Date(pedidoFields.entregadoAt) : null,
   };
+  // Nunca dejamos que el body pise el tenantId.
+  delete (pedidoRow as Record<string, unknown>).tenant_id;
 
   const itemsRows = items.map((it: Record<string, unknown>) => ({
     ...it,
@@ -88,7 +143,9 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  // Esta ruta es estática, no destructuramos params (ver GET más arriba).
+  const auth = await requireSession();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const id = req.nextUrl.searchParams.get("id");
   if (!id) {
@@ -97,25 +154,37 @@ export async function PATCH(req: NextRequest) {
 
   const body = await req.json();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { items: _ignored, ...pedidoFields } = body;
+  const { items: _ignored, tenantId: _t, tenant_id: _t2, ...pedidoFields } = body;
   const updates = { ...pedidoFields, updatedAt: nowIso() };
+
+  const filters = [eq(pedidosTable.id, id)];
+  if (session.tenantId && !session.isSuperAdmin) {
+    filters.push(eq(pedidosTable.tenantId, session.tenantId));
+  }
 
   await db
     .update(pedidosTable)
     .set(updates as typeof pedidosTable.$inferInsert)
-    .where(eq(pedidosTable.id, id));
+    .where(and(...filters));
 
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(req: NextRequest) {
-  // Esta ruta es estática, no destructuramos params (ver GET más arriba).
+  const auth = await requireSession();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
 
   const id = req.nextUrl.searchParams.get("id");
   if (!id) {
     return NextResponse.json({ error: "Missing id query param" }, { status: 400 });
   }
 
-  await db.delete(pedidosTable).where(eq(pedidosTable.id, id));
+  const filters = [eq(pedidosTable.id, id)];
+  if (session.tenantId && !session.isSuperAdmin) {
+    filters.push(eq(pedidosTable.tenantId, session.tenantId));
+  }
+
+  await db.delete(pedidosTable).where(and(...filters));
   return NextResponse.json({ ok: true });
 }

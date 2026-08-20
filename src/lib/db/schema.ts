@@ -261,6 +261,7 @@ export const pedidos = pgTable(
     hora: text("hora").notNull(),
     cerradoAt: timestamp("cerrado_at", { withTimezone: true }),
     entregadoAt: timestamp("entregado_at", { withTimezone: true }),
+    tenantId: text("tenant_id"),
     ...timestamps,
   },
   (t) => ({
@@ -268,6 +269,7 @@ export const pedidos = pgTable(
     estadoIdx: index("pedidos_estado_idx").on(t.estado),
     clienteIdx: index("pedidos_cliente_idx").on(t.clienteId),
     numeroUnq: uniqueIndex("pedidos_numero_unq").on(t.numero),
+    tenantIdx: index("pedidos_tenant_idx").on(t.tenantId),
   }),
 );
 

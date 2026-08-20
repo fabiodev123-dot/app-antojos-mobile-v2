@@ -2,24 +2,31 @@
  * API route genérica para CRUD de entidades planas del schema Antojos.
  *
  * Path: /api/db/{entity}
- * - GET sin query → list
+ * - GET sin query → list (filtrado por tenant si la entidad lo requiere)
  * - GET ?id=X → get one
- * - POST body → create
- * - PATCH ?id=X body → update
- * - DELETE ?id=X → delete
+ * - POST body → create (con tenant_id inyectado desde JWT)
+ * - PATCH ?id=X body → update (idem)
+ * - DELETE ?id=X → delete (filtrado por tenant)
  *
  * Soporta: categorias, productos, ingredientes, recetas, clientes,
  *          movimientos-stock, gastos, cierres (cierres_diarios).
  *
  * Para pedidos (que tienen items embebidos) ver /api/db/pedidos/route.ts.
  *
- * Por seguridad:
- * - El cliente NO importa postgres-js directo. Hace fetch a este endpoint.
- * - El handler valida el nombre de la entidad contra whitelist.
- * - Solo accesible desde el propio dominio (no auth por ahora — single-user).
+ * Multi-tenant:
+ * - `ENTITIES_WITH_TENANT` (en lib/auth/session.ts) define qué entidades
+ *   requieren `tenant_id`. Para esas:
+ *     - Tenant user: tenantId del JWT, ignora cualquier tenantId del body.
+ *     - Super admin: si pasa `tenant_id` en el body, lo usa; si no, 400.
+ * - GET filtra por tenant automáticamente (excepto super admin que ve todos).
+ *
+ * Auth:
+ * - requireSession() en todos los métodos. Sin sesión → 401.
+ * - GETs y DELETEs de entidades CON tenant filtran por tenantId del user.
+ *   Un tenant user no puede ver/borrar rows de otro tenant.
  */
 import { type NextRequest, NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   categorias,
@@ -33,9 +40,10 @@ import {
   ventasRapidas,
 } from "@/lib/db/schema";
 import { newId, nowIso } from "@/lib/repositories/types";
+import { ENTITIES_WITH_TENANT, requireSession } from "@/lib/auth/session";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Whitelist de entidades → tabla Drizzle + columnas permitidas
+// Whitelist de entidades → tabla Drizzle
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ENTITIES = {
@@ -47,23 +55,82 @@ const ENTITIES = {
   "movimientos-stock": movimientosStock,
   gastos,
   cierres: cierresDiarios,
-  "ventas-rapidas": ventasRapidas,
+  ventas_rapidas: ventasRapidas,
 } as const;
 
 type EntityName = keyof typeof ENTITIES;
 
-// Columnas read-only (no se pueden setear desde el body del POST).
+// Columnas read-only (no se pueden setear desde el body del POST/PATCH).
+// `tenantId`/`tenant_id` están acá porque SIEMPRE los inyecta el server
+// desde el JWT (o desde el body solo si es super admin explícitamente).
+// Esto previene que un cliente malicioso cambie el tenant de un row.
 const READ_ONLY: ReadonlySet<string> = new Set([
   "createdAt",
   "updatedAt",
   "id",
-  "tenantId",
-  "tenant_id",
 ]);
 
 function getEntity(name: string) {
   if (!(name in ENTITIES)) return null;
   return ENTITIES[name as EntityName];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Tenant helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+type TenantContext = {
+  tenantId: string | null;
+  isSuperAdmin: boolean;
+};
+
+/**
+ * Resuelve el tenantId que se debe usar para escribir una fila.
+ * - Tenant user → su tenantId del JWT (ignora cualquier tenantId del body).
+ * - Super admin → tenant_id explícito del body (snake_case o camelCase).
+ * - Si la entidad requiere tenant y no se puede resolver → 400.
+ */
+function resolveTenantForWrite(
+  ctx: TenantContext,
+  requiresTenant: boolean,
+  body: Record<string, unknown>,
+): { tenantId: string } | { error: NextResponse } {
+  if (!requiresTenant) return { tenantId: "" };
+
+  if (ctx.tenantId) {
+    return { tenantId: ctx.tenantId };
+  }
+
+  if (ctx.isSuperAdmin) {
+    const fromBody =
+      (typeof body.tenant_id === "string" && body.tenant_id) ||
+      (typeof body.tenantId === "string" && body.tenantId) ||
+      null;
+    if (fromBody) {
+      return { tenantId: fromBody };
+    }
+    return {
+      error: NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Esta entidad requiere tenant_id. Super admins deben pasarlo explícitamente en el body (tenant_id o tenantId).",
+        },
+        { status: 400 },
+      ),
+    };
+  }
+
+  return {
+    error: NextResponse.json(
+      {
+        ok: false,
+        error:
+          "Sin tenant en JWT. Esta entidad requiere un usuario asociado a un tenant.",
+      },
+      { status: 403 },
+    ),
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -75,6 +142,10 @@ export async function GET(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   { params }: { params: Promise<any> },
 ) {
+  const auth = await requireSession();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
   try {
     const { entity } = await params;
     const table = getEntity(entity);
@@ -83,19 +154,43 @@ export async function GET(
     }
 
     const id = req.nextUrl.searchParams.get("id");
+    const requiresTenant = ENTITIES_WITH_TENANT.has(entity);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const t = table as any;
+
     if (id) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const rows = await db.select().from(table as any).where(eq((table as any).id, id)).limit(1);
+      const filters = [eq(t.id, id)];
+      if (requiresTenant && session.tenantId && !session.isSuperAdmin) {
+        filters.push(eq(t.tenantId, session.tenantId));
+      } else if (requiresTenant && session.isSuperAdmin) {
+        const filterTenant = req.nextUrl.searchParams.get("tenant_id");
+        if (filterTenant) filters.push(eq(t.tenantId, filterTenant));
+      }
+      const rows = await db.select().from(t).where(and(...filters)).limit(1);
       const row = rows[0];
       if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
       return NextResponse.json(row);
     }
 
+    if (requiresTenant && session.tenantId && !session.isSuperAdmin) {
+      const rows = await db.select().from(t).where(eq(t.tenantId, session.tenantId));
+      return NextResponse.json(rows);
+    }
+    if (requiresTenant && session.isSuperAdmin) {
+      const filterTenant = req.nextUrl.searchParams.get("tenant_id");
+      if (filterTenant) {
+        const rows = await db.select().from(t).where(eq(t.tenantId, filterTenant));
+        return NextResponse.json(rows);
+      }
+      // Super admin sin filtro: ve todos los tenants.
+      const rows = await db.select().from(t);
+      return NextResponse.json(rows);
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows = await db.select().from(table as any);
+    const rows = await db.select().from(t as any);
     return NextResponse.json(rows);
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.error("[api/db/[entity]] GET error:", err);
     return NextResponse.json(
       { error: "Internal error", detail: err instanceof Error ? err.message : String(err) },
@@ -109,6 +204,10 @@ export async function POST(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   { params }: { params: Promise<any> },
 ) {
+  const auth = await requireSession();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
   const { entity } = await params;
   const table = getEntity(entity);
   if (!table) {
@@ -116,12 +215,25 @@ export async function POST(
   }
 
   const body = await req.json();
-  const now = nowIso();
+  const requiresTenant = ENTITIES_WITH_TENANT.has(entity);
+  const tenant = resolveTenantForWrite(
+    { tenantId: session.tenantId, isSuperAdmin: session.isSuperAdmin },
+    requiresTenant,
+    body,
+  );
+  if ("error" in tenant) return tenant.error;
 
-  // Filtrar columnas read-only.
-  const data: Record<string, unknown> = { id: newId(), createdAt: now, updatedAt: now };
+  const now = nowIso();
+  const data: Record<string, unknown> = {
+    id: newId(),
+    createdAt: now,
+    updatedAt: now,
+  };
   for (const [k, v] of Object.entries(body)) {
     if (!READ_ONLY.has(k)) data[k] = v;
+  }
+  if (requiresTenant) {
+    data.tenantId = tenant.tenantId;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -134,6 +246,10 @@ export async function PATCH(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   { params }: { params: Promise<any> },
 ) {
+  const auth = await requireSession();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
   const { entity } = await params;
   const table = getEntity(entity);
   if (!table) {
@@ -146,14 +262,26 @@ export async function PATCH(
   }
 
   const body = await req.json();
+  const requiresTenant = ENTITIES_WITH_TENANT.has(entity);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const t = table as any;
+
+  // Construir WHERE clause respetando tenant isolation.
+  const whereFilters = [eq(t.id, id)];
+  if (requiresTenant && session.tenantId && !session.isSuperAdmin) {
+    whereFilters.push(eq(t.tenantId, session.tenantId));
+  }
+
   const updates: Record<string, unknown> = { updatedAt: nowIso() };
   for (const [k, v] of Object.entries(body)) {
     if (!READ_ONLY.has(k)) updates[k] = v;
   }
+  // Nunca dejamos que un cliente cambie tenantId via PATCH.
+  delete updates.tenantId;
+  delete updates.tenant_id;
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await db.update(table as any).set(updates as any).where(eq((table as any).id, id));
+  await db.update(t).set(updates as any).where(and(...whereFilters));
   return NextResponse.json({ ok: true });
 }
 
@@ -162,6 +290,10 @@ export async function DELETE(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   { params }: { params: Promise<any> },
 ) {
+  const auth = await requireSession();
+  if (!auth.ok) return auth.response;
+  const { session } = auth;
+
   const { entity } = await params;
   const table = getEntity(entity);
   if (!table) {
@@ -173,8 +305,15 @@ export async function DELETE(
     return NextResponse.json({ error: "Missing id query param" }, { status: 400 });
   }
 
+  const requiresTenant = ENTITIES_WITH_TENANT.has(entity);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const result = await db.delete(table as any).where(eq((table as any).id, id));
+  const t = table as any;
+  const whereFilters = [eq(t.id, id)];
+  if (requiresTenant && session.tenantId && !session.isSuperAdmin) {
+    whereFilters.push(eq(t.tenantId, session.tenantId));
+  }
+
+  const result = await db.delete(t).where(and(...whereFilters));
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rowCount = (result as any)?.count ?? 0;
   return NextResponse.json({ ok: rowCount > 0 });
