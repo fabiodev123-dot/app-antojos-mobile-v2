@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useTransition } from "react";
+import { useEffect, useTransition, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Building2 } from "lucide-react";
+import { Building2, Check, LogOut } from "lucide-react";
 import { setActingTenant, clearActingTenant } from "@/lib/auth/acting";
 
 export type TenantOption = {
@@ -19,6 +19,8 @@ export function TenantSelector({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [open, setOpen] = useState(false);
+  const detailsRef = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
     if (activeActingId || tenants.length === 0) return;
@@ -28,17 +30,30 @@ export function TenantSelector({
     });
   }, [activeActingId, tenants, router]);
 
-  function handleChange(value: string) {
-    if (value === "__exit__") {
-      startTransition(async () => {
-        await clearActingTenant();
-        router.refresh();
-      });
-      return;
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (detailsRef.current && !detailsRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
     }
-    if (!value) return;
+    if (open) {
+      document.addEventListener("click", handleClickOutside);
+      return () => document.removeEventListener("click", handleClickOutside);
+    }
+  }, [open]);
+
+  function pick(id: string) {
+    setOpen(false);
     startTransition(async () => {
-      await setActingTenant(value);
+      await setActingTenant(id);
+      router.refresh();
+    });
+  }
+
+  function exit() {
+    setOpen(false);
+    startTransition(async () => {
+      await clearActingTenant();
       router.refresh();
     });
   }
@@ -48,35 +63,61 @@ export function TenantSelector({
     : null;
 
   return (
-    <label
-      className={`inline-flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-xs shadow-sm transition-colors hover:bg-accent/50 focus-within:ring-1 focus-within:ring-ring ${
-        pending ? "opacity-60" : ""
-      }`}
+    <details
+      ref={detailsRef}
+      open={open}
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+      className="relative"
     >
-      <Building2 className="size-3.5 shrink-0 opacity-70" />
-      <select
-        aria-label="Actuar como tenant"
-        disabled={pending}
-        value={active?.id ?? ""}
-        onChange={(e) => handleChange(e.target.value)}
-        className="h-full appearance-none bg-transparent pr-5 text-xs font-medium outline-none disabled:cursor-not-allowed"
-        style={{
-          backgroundImage:
-            "url(\"data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='%23666'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E\")",
-          backgroundRepeat: "no-repeat",
-          backgroundPosition: "right 0.25rem center",
-          backgroundSize: "12px 12px",
-        }}
+      <summary
+        className="inline-flex h-8 cursor-pointer list-none items-center gap-1.5 rounded-md border border-input bg-background px-2.5 text-xs font-medium shadow-sm transition-colors hover:bg-accent/50 [&::-webkit-details-marker]:hidden"
       >
-        <option value="">Actuar como tenant…</option>
-        {tenants.map((t) => (
-          <option key={t.id} value={t.id}>
-            {active?.id === t.id ? "✓ " : ""}
-            {t.name}
-          </option>
-        ))}
-        {active ? <option value="__exit__">— Salir del modo act as</option> : null}
-      </select>
-    </label>
+        <Building2 className="size-3.5 opacity-70" />
+        <span className="max-w-[10rem] truncate">
+          {active ? active.name : "Elegir tenant…"}
+        </span>
+        {active ? <Check className="size-3 text-success" /> : null}
+      </summary>
+
+      <div className="absolute right-0 top-full z-50 mt-2 w-64 overflow-hidden rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-lg">
+        <p className="px-2 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Cambiar de tenant
+        </p>
+        <ul>
+          {tenants.map((t) => (
+            <li key={t.id}>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => pick(t.id)}
+                className="flex w-full items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-accent disabled:opacity-50"
+              >
+                <span className="flex items-center gap-2 truncate">
+                  <Building2 className="size-3.5 opacity-70" />
+                  <span className="truncate">{t.name}</span>
+                </span>
+                {active?.id === t.id ? (
+                  <Check className="size-3.5 text-success" />
+                ) : null}
+              </button>
+            </li>
+          ))}
+        </ul>
+        {active ? (
+          <>
+            <div className="my-1 h-px bg-border" />
+            <button
+              type="button"
+              disabled={pending}
+              onClick={exit}
+              className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-muted-foreground hover:bg-accent disabled:opacity-50"
+            >
+              <LogOut className="size-3.5" />
+              Salir del modo act as
+            </button>
+          </>
+        ) : null}
+      </div>
+    </details>
   );
 }
