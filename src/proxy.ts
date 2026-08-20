@@ -1,17 +1,20 @@
 /**
- * Middleware — protege /admin/*
+ * Proxy (ex-middleware en Next.js 16) — protege /admin/*
  *
  * Si no hay sesión → redirect a /login?reason=unauthenticated
  * Si hay sesión pero el user no está en super_admins → redirect a /login?reason=forbidden
  *
  * Usa el cliente de @supabase/ssr con cookies del request (patrón edge).
- * No usa next/headers porque el middleware corre en edge runtime.
+ * No usa next/headers porque el proxy corre en edge runtime.
+ *
+ * Migrado desde middleware.ts según la guía de Next.js 16:
+ * https://nextjs.org/docs/messages/middleware-to-proxy
  */
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   // Inicializar response que vamos a ir mutando para refresh de cookies
   let response = NextResponse.next({ request });
 
@@ -23,7 +26,7 @@ export async function middleware(request: NextRequest) {
   if (!url || !key) {
     // Si faltan env vars, dejamos pasar pero logueamos.
     // El server component revalidará y romperá ruidosamente.
-    console.error("[middleware] Faltan env vars de Supabase");
+    console.error("[proxy] Faltan env vars de Supabase");
     return response;
   }
 
@@ -55,8 +58,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Chequear membresía en super_admins (RLS deshabilitado en la tabla,
-  // funciona con el publishable key mientras el JWT esté validado).
+  // Chequear membresía en super_admins (RLS permite self-check via policy
+  // super_admins_select_own en migración 0005_enable_rls_tenants_super_admins.sql).
   const { data: superAdmin } = await supabase
     .from("super_admins" as never)
     .select("id")
