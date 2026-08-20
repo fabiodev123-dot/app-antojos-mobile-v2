@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/card";
 import { formatHora, formatPrecio } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { useTimeAgo } from "@/hooks/use-time-ago";
 import type {
   RecentActivity,
   AuditLogEntry,
@@ -44,12 +45,9 @@ type FeedItem =
       superAdminEmail: string;
     };
 
-function timeAgo(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 60_000) return "ahora";
-  if (ms < 3_600_000) return `hace ${Math.floor(ms / 60_000)} min`;
-  if (ms < 86_400_000) return `hace ${Math.floor(ms / 3_600_000)} h`;
-  return `hace ${Math.floor(ms / 86_400_000)} d`;
+function TimeAgoLabel({ iso }: { iso: string }) {
+  const label = useTimeAgo(iso);
+  return <>{label || "—"}</>;
 }
 
 const ACTION_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -169,7 +167,7 @@ export function ActivityFeed({
                         </span>
                       </p>
                       <p className="text-muted-foreground text-[10px]">
-                        {timeAgo(item.ts)} ·{" "}
+                        <TimeAgoLabel iso={item.ts} /> ·{" "}
                         {formatHora(item.ts.slice(11, 16))}
                       </p>
                     </div>
@@ -189,7 +187,7 @@ export function ActivityFeed({
               );
             }
             const Icon = ACTION_ICON[item.action] ?? Settings;
-            const label = ACTION_LABEL[item.action] ?? item.action;
+            const actionLabel = ACTION_LABEL[item.action] ?? item.action;
             const href =
               item.targetType === "tenant" && item.targetLabel
                 ? `/admin/tenants/${tenants.find((t) => t.name === item.targetLabel)?.id ?? ""}`
@@ -210,7 +208,7 @@ export function ActivityFeed({
                       </span>
                       <span className="text-muted-foreground">
                         {" "}
-                        {label}{" "}
+                        {actionLabel}{" "}
                         {item.targetLabel && (
                           <span className="font-medium text-foreground">
                             {item.targetLabel}
@@ -219,7 +217,7 @@ export function ActivityFeed({
                       </span>
                     </p>
                     <p className="text-muted-foreground text-[10px]">
-                      {timeAgo(item.ts)} ·{" "}
+                      <TimeAgoLabel iso={item.ts} /> ·{" "}
                       {formatHora(item.ts.slice(11, 16))}
                     </p>
                   </div>

@@ -29,14 +29,6 @@ const PLATFORM_LABEL: Record<string, string> = {
   web: "Web",
 };
 
-function timeAgo(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 60_000) return "ahora";
-  if (ms < 3_600_000) return `hace ${Math.floor(ms / 60_000)} min`;
-  if (ms < 86_400_000) return `hace ${Math.floor(ms / 3_600_000)} h`;
-  return `hace ${Math.floor(ms / 86_400_000)} d`;
-}
-
 export function DevicesCard({
   activeCount,
   devices,
@@ -177,7 +169,7 @@ export function DevicesCard({
                       className="text-muted-foreground shrink-0 text-xs tabular-nums"
                       title={`${formatFechaCorta(d.lastSeen)} ${formatHora(d.lastSeen.slice(11, 16))}`}
                     >
-                      {timeAgo(d.lastSeen)}
+                      <TimeAgoLabel iso={d.lastSeen} />
                     </span>
                   </li>
                 );

@@ -29,6 +29,9 @@ function stamp<T extends BaseEntity>(items: Array<Omit<T, "createdAt" | "updated
 }
 
 export function ensureSeeded(): void {
+  if (typeof window === "undefined") return;
+  if (readJson<boolean>(STORAGE_KEYS.dataSource, "") === "supabase") return;
+
   const seeded = readJson<boolean>(STORAGE_KEYS.seeded, false);
   if (seeded) return;
 
