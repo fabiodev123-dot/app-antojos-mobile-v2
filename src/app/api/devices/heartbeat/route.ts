@@ -6,6 +6,24 @@ import {
 } from "@/lib/supabase/server";
 import { newId } from "@/lib/repositories/types";
 
+/**
+ * POST /api/devices/heartbeat
+ *
+ * Registra/actualiza la sesión del dispositivo en `device_sessions`.
+ *
+ * Comportamiento multi-tenant:
+ * - Tenant user (con tenant_id en app_metadata) → upsert normal en su tenant.
+ * - Super admin (sin tenant_id) → responde 204 silenciosamente. NO se trackea
+ *   el dispositivo porque no hay tenant a qué atribuirlo. Esto es intencional:
+ *   la tabla `device_sessions` tiene FK a `tenants(id)` NOT NULL, así que un
+ *   super admin puro no puede escribir ahí. Trackear devices del super admin
+ *   podría ir en una tabla separada si se necesita en el futuro.
+ *
+ * Best-effort: el cliente (useDeviceHeartbeat) hace fetch sin esperar
+ * respuesta útil — los 403/500 se ignoran. PERO cuando el user SÍ está
+ * autenticado pero le falta tenant_id (caso super admin), es molesto llenar
+ * el log con errores. Por eso respondemos 204 en ese caso.
+ */
 const heartbeatSchema = z.object({
   deviceId: z.string().min(1).max(128),
   appVersion: z.string().max(32).optional(),
@@ -31,6 +49,8 @@ export async function POST(req: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  // Sin sesión → el cliente no debería estar mandando heartbeat. Respondemos
+  // 401 igual que antes (caso: cookie expirada, el cliente va a refrescar).
   if (!user) {
     return NextResponse.json(
       { ok: false, error: "No autenticado" },
@@ -40,11 +60,11 @@ export async function POST(req: NextRequest) {
 
   const tenantId = (user.app_metadata as { tenant_id?: string } | undefined)
     ?.tenant_id;
+
+  // Super admin sin tenant: heartbeat silencioso, no trackeamos el device.
+  // (Lo dejamos en un comment visible para el próximo que lea.)
   if (!tenantId) {
-    return NextResponse.json(
-      { ok: false, error: "Sin tenant en JWT" },
-      { status: 403 },
-    );
+    return new NextResponse(null, { status: 204 });
   }
 
   let body: unknown;
