@@ -72,9 +72,15 @@ const READ_ONLY: ReadonlySet<string> = new Set([
 
 function maybeToDate(v: unknown): unknown {
   if (typeof v !== "string") return v;
-  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) return v;
-  const d = new Date(v);
-  return Number.isNaN(d.getTime()) ? v : d;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) {
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? v : d;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const d = new Date(`${v}T00:00:00Z`);
+    return Number.isNaN(d.getTime()) ? v : d;
+  }
+  return v;
 }
 
 function getEntity(name: string) {

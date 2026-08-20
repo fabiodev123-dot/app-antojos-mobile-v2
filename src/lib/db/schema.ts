@@ -283,6 +283,9 @@ export const pedidoItems = pgTable(
     productoId: text("producto_id").references(() => productos.id, {
       onDelete: "set null",
     }),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
     nombreProducto: text("nombre_producto").notNull(),
     colorProducto: colorPlatoEnum("color_producto").notNull(),
     cantidad: integer("cantidad").notNull(),
@@ -303,6 +306,7 @@ export const pedidoItems = pgTable(
   (t) => ({
     pedidoIdx: index("pedido_items_pedido_idx").on(t.pedidoId),
     productoIdx: index("pedido_items_producto_idx").on(t.productoId),
+    tenantIdx: index("pedido_items_tenant_idx").on(t.tenantId),
   }),
 );
 

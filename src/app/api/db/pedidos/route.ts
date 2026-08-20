@@ -128,6 +128,7 @@ export async function POST(req: NextRequest) {
     ...it,
     id: it.id ?? newId(),
     pedidoId,
+    tenantId,
     createdAt: it.createdAt ? new Date(it.createdAt as string) : now,
     updatedAt: it.updatedAt ? new Date(it.updatedAt as string) : now,
   }));
