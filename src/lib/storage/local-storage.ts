@@ -79,5 +79,6 @@ export const STORAGE_KEYS = {
   ventasRapidas: "ventas_rapidas",
   counters: "counters",
   config: "config",
+  dataSource: "data_source",
   seeded: "seeded_v7",
 } as const;

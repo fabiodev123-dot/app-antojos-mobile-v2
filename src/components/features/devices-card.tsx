@@ -29,6 +29,11 @@ const PLATFORM_LABEL: Record<string, string> = {
   web: "Web",
 };
 
+function TimeAgoLabel({ iso }: { iso: string }) {
+  const label = useTimeAgo(iso);
+  return <>{label || "—"}</>;
+}
+
 export function DevicesCard({
   activeCount,
   devices,

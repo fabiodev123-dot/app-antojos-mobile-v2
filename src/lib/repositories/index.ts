@@ -44,7 +44,20 @@ if (useSupabase) {
     "[repositories] DATA_SOURCE=supabase → usando fetch a /api/db/*",
   );
 } else {
-  console.info("[repositories] DATA_SOURCE=local → usando localStorage");
+  console.info(
+    "[repositories] DATA_SOURCE=local → usando localStorage",
+  );
+}
+
+if (typeof window !== "undefined") {
+  try {
+    window.localStorage.setItem(
+      "antojos:data_source",
+      useSupabase ? "supabase" : "local",
+    );
+  } catch {
+    // ignore
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
