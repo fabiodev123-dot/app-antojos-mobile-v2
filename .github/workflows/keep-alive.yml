@@ -3,7 +3,6 @@ name: keep-alive
 on:
   schedule:
     # Cada 14 minutos para evitar que Render free tier duerma el service
-    # (free tier duerme después de 15 min sin tráfico)
     - cron: "*/14 * * * *"
   workflow_dispatch:
 
@@ -13,11 +12,13 @@ jobs:
     timeout-minutes: 2
     steps:
       - name: Ping app to prevent sleep
+        env:
+          APP_URL: ${{ vars.APP_URL || secrets.APP_URL || 'https://app-antojos-mobile.onrender.com' }}
         run: |
-          URL="https://app-antojos-mobile.onrender.com"
-          echo "Pinging $URL ..."
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL" || echo "000")
+          echo "Pinging $APP_URL ..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 -L "$APP_URL" || echo "000")
           echo "Response: $HTTP_CODE"
           if [ "$HTTP_CODE" != "200" ] && [ "$HTTP_CODE" != "307" ] && [ "$HTTP_CODE" != "302" ]; then
             echo "::warning::Unexpected HTTP code: $HTTP_CODE"
+            exit 1
           fi
