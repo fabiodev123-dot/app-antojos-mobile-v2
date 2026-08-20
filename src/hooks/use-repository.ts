@@ -51,6 +51,7 @@ export function useRepositoryList<T extends BaseEntity>(repository: Repository<T
 
   const version = reactive ? supabaseVersion : storageVersion;
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- useMemo retorna closures condicionales, React Compiler no puede preservarlas automáticamente.
   const subscribe = useMemo(() => {
     if (!reactive) {
       // Local: subscribe al bus global de storage
@@ -100,6 +101,7 @@ export function useRepositoryGet<T extends BaseEntity>(
 
   const version = reactive ? supabaseVersion : storageVersion;
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- useMemo retorna closures condicionales, React Compiler no puede preservarlas automáticamente.
   const subscribe = useMemo(() => {
     if (!reactive) {
       return (onStoreChange: () => void) => {

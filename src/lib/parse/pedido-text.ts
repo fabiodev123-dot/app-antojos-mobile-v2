@@ -620,7 +620,7 @@ function scoreMatch(nameTokens: string[], product: Producto): ScoredMatch | null
   const allHits = nameTokens.every((t) => productSet.has(t));
   let baseScore = 0;
   let baseReason = "";
-  let baseHits = nameTokens.filter((t) => productSet.has(t)).length;
+  const baseHits = nameTokens.filter((t) => productSet.has(t)).length;
 
   if (allHits && nameTokens.length >= 1) {
     // Bonus si el primer token matchea el primer token del producto

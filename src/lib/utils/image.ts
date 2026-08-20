@@ -52,7 +52,7 @@ export async function compressImage(
   const type = opts.type ?? "image/jpeg";
 
   const img = await loadImage(src);
-  let { width, height } = img;
+  const { width, height } = img;
   const ratio = Math.min(1, maxWidth / width, maxHeight / height);
   if (ratio >= 1 && type === "image/jpeg") {
     // No necesitamos escalar — devolvemos el src tal cual.
