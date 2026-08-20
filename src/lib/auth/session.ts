@@ -29,6 +29,7 @@
 
 import "server-only";
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export type Session = {
@@ -69,6 +70,17 @@ export async function getSession(): Promise<Session | null> {
     .select("id")
     .eq("user_id", user.id)
     .maybeSingle() as { data: { id: string } | null };
+
+  const cookieStore = await cookies();
+  const acting = cookieStore.get("acting_tenant_id")?.value;
+
+  if (superAdmin && acting) {
+    return {
+      user: { id: user.id, email: user.email },
+      tenantId: acting,
+      isSuperAdmin: true,
+    };
+  }
 
   return {
     user: { id: user.id, email: user.email },
