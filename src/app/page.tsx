@@ -1,5 +1,6 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   ClipboardList,
@@ -28,12 +29,40 @@ import { formatHora, formatPrecio, hoy } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { WeeklySummary } from "@/components/features/weekly-summary";
 
-function greeting(): string {
-  const h = new Date().getHours();
+function greetingForHour(h: number): string {
   if (h < 6) return "Buenas noches";
   if (h < 13) return "Buenos días";
   if (h < 19) return "Buenas tardes";
   return "Buenas noches";
+}
+
+/**
+ * Hooks client-only via `useSyncExternalStore`.
+ *
+ * Evita React #418 (hydration mismatch): el server snapshot es "" y el
+ * client snapshot es el valor real. Patrón compatible con React Compiler
+ * (`react-hooks/set-state-in-effect`) — sin useEffect ni setState. Igual
+ * al patrón de `pwa-install.tsx:25-31` y `use-time-ago.ts`.
+ */
+function useClientDateLabel(): string {
+  return useSyncExternalStore(
+    () => () => {},
+    () =>
+      new Date().toLocaleDateString("es-AR", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }),
+    () => "",
+  );
+}
+
+function useClientGreeting(): string {
+  return useSyncExternalStore(
+    () => () => {},
+    () => greetingForHour(new Date().getHours()),
+    () => "",
+  );
 }
 
 export default function HomePage() {
@@ -42,6 +71,9 @@ export default function HomePage() {
   const clientes = useRepositoryList(clientesRepository);
   const gastos = useRepositoryList(gastosRepository);
   const ventasRapidas = useRepositoryList(ventasRapidasRepository);
+
+  const greet = useClientGreeting();
+  const dateLabel = useClientDateLabel();
 
   const today = hoy();
   const pedidosHoy = pedidos.filter((p) => p.fecha === today);
@@ -67,15 +99,11 @@ export default function HomePage() {
 
   return (
     <>
-      <ShellHeader title="Antojos" subtitle={`${greeting()}, rotisería`} />
+      <ShellHeader title="Antojos" subtitle={greet ? `${greet}, rotisería` : "rotisería"} />
       <main className="mx-auto max-w-6xl px-4 py-4 space-y-4">
         <PageHeader
           title="Resumen del día"
-          subtitle={new Date().toLocaleDateString("es-AR", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-          })}
+          subtitle={dateLabel || " "}
         />
 
         <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
