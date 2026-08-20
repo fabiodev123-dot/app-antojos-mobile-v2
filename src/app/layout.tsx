@@ -39,16 +39,28 @@ export const viewport: Viewport = {
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const superAdmin = await getCurrentSuperAdminOrNull();
-  const actingId = superAdmin
-    ? (await cookies()).get("acting_tenant_id")?.value ?? null
+  const cookieStore = await cookies();
+  let actingId = superAdmin
+    ? cookieStore.get("acting_tenant_id")?.value ?? null
     : null;
   const tenants = superAdmin
     ? (await getTenantsWithStats()).map((t) => ({ id: t.id, name: t.name }))
     : [];
 
+  if (superAdmin && !actingId && tenants.length > 0) {
+    cookieStore.set("acting_tenant_id", tenants[0].id, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24,
+    });
+    actingId = tenants[0].id;
+  }
+
   const topBar = (
     <>
-      <ActingAsBanner />
+      <ActingAsBanner actingId={actingId} />
       {superAdmin && tenants.length > 0 ? (
         <div className="border-b border-border bg-background/85 backdrop-blur-xl">
           <div className="mx-auto flex h-10 max-w-6xl items-center justify-end gap-2 px-4">

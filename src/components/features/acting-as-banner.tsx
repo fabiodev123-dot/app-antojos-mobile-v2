@@ -1,18 +1,15 @@
-import { cookies } from "next/headers";
 import { Eye, X } from "lucide-react";
 import { clearActingTenant } from "@/lib/auth/acting";
 import { createSupabaseAdminClient } from "@/lib/supabase/server";
 
-export async function ActingAsBanner() {
-  const cookieStore = await cookies();
-  const acting = cookieStore.get("acting_tenant_id")?.value;
-  if (!acting) return null;
+export async function ActingAsBanner({ actingId }: { actingId?: string | null }) {
+  if (!actingId) return null;
 
   const admin = createSupabaseAdminClient();
   const { data } = await admin
     .from("tenants" as never)
     .select("name")
-    .eq("id", acting)
+    .eq("id", actingId)
     .maybeSingle() as { data: { name: string } | null };
 
   const tenantName = data?.name ?? "tenant";
