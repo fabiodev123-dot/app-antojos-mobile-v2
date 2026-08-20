@@ -70,6 +70,13 @@ const READ_ONLY: ReadonlySet<string> = new Set([
   "id",
 ]);
 
+function maybeToDate(v: unknown): unknown {
+  if (typeof v !== "string") return v;
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) return v;
+  const d = new Date(v);
+  return Number.isNaN(d.getTime()) ? v : d;
+}
+
 function getEntity(name: string) {
   if (!(name in ENTITIES)) return null;
   return ENTITIES[name as EntityName];
@@ -230,7 +237,7 @@ export async function POST(
     updatedAt: now,
   };
   for (const [k, v] of Object.entries(body)) {
-    if (!READ_ONLY.has(k)) data[k] = v;
+    if (!READ_ONLY.has(k)) data[k] = maybeToDate(v);
   }
   if (requiresTenant) {
     data.tenantId = tenant.tenantId;
@@ -285,7 +292,7 @@ export async function PATCH(
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   for (const [k, v] of Object.entries(body)) {
-    if (!READ_ONLY.has(k)) updates[k] = v;
+    if (!READ_ONLY.has(k)) updates[k] = maybeToDate(v);
   }
   // Nunca dejamos que un cliente cambie tenantId via PATCH.
   delete updates.tenantId;
