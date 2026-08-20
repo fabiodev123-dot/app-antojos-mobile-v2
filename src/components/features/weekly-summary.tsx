@@ -7,6 +7,7 @@ import { pedidosRepository, ventasRapidasRepository } from "@/lib/repositories";
 import { getStartOfWeek, getWeekDays, formatWeekLabel } from "@/lib/utils/week";
 import { formatPrecio, hoy } from "@/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+// build marker: 2026-08-20 — forces fresh deploy on Render
 
 const DAY_NAME_SHORT = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"] as const;
 
