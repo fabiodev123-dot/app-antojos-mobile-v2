@@ -1,21 +1,36 @@
 /**
- * Proxy (ex-middleware en Next.js 16) — protege /admin/*
+ * Proxy (ex-middleware en Next.js 16) — protege toda la app autenticada.
  *
- * Si no hay sesión → redirect a /login?reason=unauthenticated
- * Si hay sesión pero el user no está en super_admins → redirect a /login?reason=forbidden
+ * - /admin/* requiere ser super admin (redirige a /login si no).
+ * - /, /pedidos, /productos, etc. requieren session (cualquier user autenticado).
+ * - /login, /admin/login, /api/*, assets: pasan sin chequeo.
  *
- * Usa el cliente de @supabase/ssr con cookies del request (patrón edge).
- * No usa next/headers porque el proxy corre en edge runtime.
- *
- * Migrado desde middleware.ts según la guía de Next.js 16:
- * https://nextjs.org/docs/messages/middleware-to-proxy
+ * Las API routes (/api/db/*, /api/devices/*, etc.) tienen su propio
+ * requireSession() en cada handler — el proxy solo redirige para rutas
+ * de page, no para fetch.
  */
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+const PUBLIC_PAGE_PATHS = ["/login", "/admin/login"];
+const PUBLIC_API_PREFIXES = ["/api/"];
+const PUBLIC_ASSET_PREFIXES = ["/_next/", "/favicon"];
+
+function isPublicPath(pathname: string): boolean {
+  if (PUBLIC_PAGE_PATHS.includes(pathname)) return true;
+  if (PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p))) return true;
+  if (PUBLIC_ASSET_PREFIXES.some((p) => pathname.startsWith(p))) return true;
+  return false;
+}
+
 export async function proxy(request: NextRequest) {
-  // Inicializar response que vamos a ir mutando para refresh de cookies
+  const { pathname } = request.nextUrl;
+
+  if (isPublicPath(pathname)) {
+    return NextResponse.next({ request });
+  }
+
   let response = NextResponse.next({ request });
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -24,8 +39,6 @@ export async function proxy(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !key) {
-    // Si faltan env vars, dejamos pasar pero logueamos.
-    // El server component revalidará y romperá ruidosamente.
     console.error("[proxy] Faltan env vars de Supabase");
     return response;
   }
@@ -47,7 +60,6 @@ export async function proxy(request: NextRequest) {
     },
   });
 
-  // getUser() valida el JWT y refresca la sesión si hace falta.
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -58,26 +70,29 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // Chequear membresía en super_admins (RLS permite self-check via policy
-  // super_admins_select_own en migración 0005_enable_rls_tenants_super_admins.sql).
-  const { data: superAdmin } = await supabase
-    .from("super_admins" as never)
-    .select("id")
-    .eq("user_id", user.id)
-    .single() as { data: { id: string } | null };
+  if (pathname.startsWith("/admin")) {
+    const { data: superAdmin } = await supabase
+      .from("super_admins" as never)
+      .select("id")
+      .eq("user_id", user.id)
+      .single() as { data: { id: string } | null };
 
-  if (!superAdmin) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("reason", "forbidden");
-    // Limpiamos la cookie de sesión para no rebotar en loop.
-    const redirectResponse = NextResponse.redirect(loginUrl);
-    redirectResponse.cookies.delete("sb-" + url.split(".")[0].split("//")[1] + "-auth-token");
-    return redirectResponse;
+    if (!superAdmin) {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("reason", "forbidden");
+      const redirectResponse = NextResponse.redirect(loginUrl);
+      redirectResponse.cookies.delete(
+        "sb-" + url.split(".")[0].split("//")[1] + "-auth-token",
+      );
+      return redirectResponse;
+    }
   }
 
   return response;
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+  ],
 };
