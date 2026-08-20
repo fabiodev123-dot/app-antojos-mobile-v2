@@ -283,9 +283,7 @@ export const pedidoItems = pgTable(
     productoId: text("producto_id").references(() => productos.id, {
       onDelete: "set null",
     }),
-    tenantId: text("tenant_id")
-      .notNull()
-      .references(() => tenants.id, { onDelete: "cascade" }),
+    tenantId: text("tenant_id").notNull(),
     nombreProducto: text("nombre_producto").notNull(),
     colorProducto: colorPlatoEnum("color_producto").notNull(),
     cantidad: integer("cantidad").notNull(),
