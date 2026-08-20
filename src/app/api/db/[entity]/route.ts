@@ -30,6 +30,7 @@ import {
   movimientosStock,
   gastos,
   cierresDiarios,
+  ventasRapidas,
 } from "@/lib/db/schema";
 import { newId, nowIso } from "@/lib/repositories/types";
 
@@ -46,12 +47,19 @@ const ENTITIES = {
   "movimientos-stock": movimientosStock,
   gastos,
   cierres: cierresDiarios,
+  "ventas-rapidas": ventasRapidas,
 } as const;
 
 type EntityName = keyof typeof ENTITIES;
 
 // Columnas read-only (no se pueden setear desde el body del POST).
-const READ_ONLY: ReadonlySet<string> = new Set(["createdAt", "updatedAt", "id"]);
+const READ_ONLY: ReadonlySet<string> = new Set([
+  "createdAt",
+  "updatedAt",
+  "id",
+  "tenantId",
+  "tenant_id",
+]);
 
 function getEntity(name: string) {
   if (!(name in ENTITIES)) return null;

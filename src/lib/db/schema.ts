@@ -198,6 +198,23 @@ export const recetas = pgTable(
   }),
 );
 
+export const ventasRapidas = pgTable(
+  "ventas_rapidas",
+  {
+    id: text("id").primaryKey(),
+    fecha: date("fecha").notNull(),
+    hora: text("hora").notNull(),
+    monto: numeric("monto", { precision: 10, scale: 2, mode: "number" }).notNull(),
+    nota: text("nota"),
+    tenantId: text("tenant_id").notNull(),
+    ...timestamps,
+  },
+  (t) => ({
+    tenantIdx: index("ventas_rapidas_tenant_idx").on(t.tenantId),
+    fechaIdx: index("ventas_rapidas_fecha_idx").on(t.fecha),
+  }),
+);
+
 export const clientes = pgTable("clientes", {
   id: text("id").primaryKey(),
   nombre: text("nombre").notNull(),
@@ -444,3 +461,4 @@ export type PedidoItemDb = typeof pedidoItems.$inferSelect;
 export type MovimientoStockDb = typeof movimientosStock.$inferSelect;
 export type GastoDb = typeof gastos.$inferSelect;
 export type CierreDiarioDb = typeof cierresDiarios.$inferSelect;
+export type VentaRapidaDb = typeof ventasRapidas.$inferSelect;
