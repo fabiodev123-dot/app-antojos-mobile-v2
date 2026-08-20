@@ -1,3 +1,17 @@
+# Render.com infrastructure config for app-antojos-mobile
+#
+# Setup:
+# 1. Ir a https://render.com → New + → Web Service
+# 2. Conectar repo: fabiodev123-dot/app-antojos-mobile
+# 3. Render detecta este archivo y aplica la config
+# 4. Setear las 3 env vars SECRETAS manualmente (NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY, DATABASE_URL)
+# 5. Manual Deploy → Deploy latest commit
+#
+# Notas:
+# - Plan free: se duerme después de 15 min sin tráfico. GitHub Actions cron
+#   (/.github/workflows/keep-alive.yml) hace ping cada 14 min para evitar el sleep.
+# - Para que el cron funcione gratis, el fork debe ser público.
+
 services:
   - type: web
     name: app-antojos-mobile
