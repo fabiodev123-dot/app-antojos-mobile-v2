@@ -50,7 +50,6 @@ export function UserMenu({ email }: { email: string | null }) {
                 type="submit"
                 role="menuitem"
                 className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm text-destructive hover:bg-destructive/10"
-                onClick={() => setOpen(false)}
               >
                 <LogOut className="size-4" />
                 Cerrar sesión
