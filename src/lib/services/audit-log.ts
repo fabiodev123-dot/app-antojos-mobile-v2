@@ -9,6 +9,7 @@ export type AdminAction =
   | "user.added_to_tenant"
   | "user.removed_from_tenant"
   | "user.role_changed"
+  | "user.created_and_added"
   | "system.login";
 
 export async function logAdminAction(params: {

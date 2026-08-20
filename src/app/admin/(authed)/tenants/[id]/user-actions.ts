@@ -40,22 +40,27 @@ function generateStrongPassword(): string {
   const digits = "23456789";
   const symbols = "!@#$%^&*";
   const all = lower + upper + digits + symbols;
-  const length = 20;
-  const bytes = new Uint8Array(length);
+  const PWD_LEN = 20;
+  const bytes = new Uint8Array(PWD_LEN);
   if (typeof crypto !== "undefined" && crypto.getRandomValues) {
     crypto.getRandomValues(bytes);
   } else {
-    for (let i = 0; i < length; i++) bytes[i] = Math.floor(Math.random() * 256);
+    for (let i = 0; i < PWD_LEN; i++) bytes[i] = Math.floor(Math.random() * 256);
   }
   let pwd = "";
   pwd += lower[bytes[0] % lower.length];
   pwd += upper[bytes[1] % upper.length];
   pwd += digits[bytes[2] % digits.length];
   pwd += symbols[bytes[3] % symbols.length];
-  for (let i = 4; i < length; i++) {
+  for (let i = 4; i < PWD_LEN; i++) {
     pwd += all[bytes[i] % all.length];
   }
-  return pwd.split("").sort(() => bytes[--length] - 128).join("");
+  return pwd
+    .split("")
+    .map((c, i) => ({ c, r: bytes[i] }))
+    .sort((a, b) => a.r - b.r)
+    .map((x) => x.c)
+    .join("");
 }
 
 export async function createTenantUserAction(
