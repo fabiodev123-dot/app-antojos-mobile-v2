@@ -315,6 +315,7 @@ export const movimientosStock = pgTable(
     ingredienteId: text("ingrediente_id")
       .notNull()
       .references(() => ingredientes.id, { onDelete: "restrict" }),
+    tenantId: text("tenant_id").notNull(),
     tipo: tipoMovimientoStockEnum("tipo").notNull(),
     cantidad: numeric("cantidad", {
       precision: 10,
@@ -331,6 +332,7 @@ export const movimientosStock = pgTable(
   (t) => ({
     ingredienteIdx: index("mov_stock_ingrediente_idx").on(t.ingredienteId),
     fechaIdx: index("mov_stock_fecha_idx").on(t.fecha),
+    tenantIdx: index("mov_stock_tenant_idx").on(t.tenantId),
   }),
 );
 

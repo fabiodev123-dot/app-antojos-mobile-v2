@@ -143,4 +143,5 @@ export async function requireTenantSession(): Promise<TenantSessionResult> {
 export const ENTITIES_WITH_TENANT = new Set<string>([
   "ventas_rapidas",
   "pedidos",
+  "movimientos_stock",
 ]);
