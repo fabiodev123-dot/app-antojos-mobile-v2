@@ -30,7 +30,20 @@ function stamp<T extends BaseEntity>(items: Array<Omit<T, "createdAt" | "updated
 
 export function ensureSeeded(): void {
   if (typeof window === "undefined") return;
-  if (readJson<string>(STORAGE_KEYS.dataSource, "") === "supabase") return;
+
+  // Solo seedear si estamos EXPLÍCITAMENTE en localStorage mode.
+  // - dataSource === "supabase" → backend real, no seedear (reemplaza por fetch).
+  // - dataSource === "" (no seteado) → el módulo @/lib/repositories todavía no
+  //   terminó de inicializarse o hay un problema de env vars. Salir silencioso
+  //   y dejar que el próximo mount lo intente. NUNCA entrar al replaceAll
+  //   porque rompe con los repos Supabase.
+  // - dataSource === "local" → OK, seedear.
+  //
+  // Esto previene el bug "[supabase-repository] replaceAll no soportado en API
+  // genérica" cuando el bundle cacheado del SW sirve una versión vieja o
+  // cuando DATA_SOURCE no se computa correctamente.
+  const ds = readJson<string>(STORAGE_KEYS.dataSource, "");
+  if (ds !== "local") return;
 
   const seeded = readJson<boolean>(STORAGE_KEYS.seeded, false);
   if (seeded) return;
