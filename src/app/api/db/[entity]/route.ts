@@ -39,7 +39,7 @@ import {
   cierresDiarios,
   ventasRapidas,
 } from "@/lib/db/schema";
-import { newId, nowIso } from "@/lib/repositories/types";
+import { newId } from "@/lib/repositories/types";
 import { ENTITIES_WITH_TENANT, requireSession } from "@/lib/auth/session";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -223,7 +223,7 @@ export async function POST(
   );
   if ("error" in tenant) return tenant.error;
 
-  const now = nowIso();
+  const now = new Date();
   const data: Record<string, unknown> = {
     id: newId(),
     createdAt: now,
@@ -236,9 +236,20 @@ export async function POST(
     data.tenantId = tenant.tenantId;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await db.insert(table as any).values(data as any);
-  return NextResponse.json(data, { status: 201 });
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await db.insert(table as any).values(data as any);
+    return NextResponse.json(data, { status: 201 });
+  } catch (err) {
+    console.error("[api/db/[entity]] POST error:", err);
+    return NextResponse.json(
+      {
+        error: "Internal error",
+        detail: err instanceof Error ? err.message : String(err),
+      },
+      { status: 500 },
+    );
+  }
 }
 
 export async function PATCH(
@@ -272,7 +283,7 @@ export async function PATCH(
     whereFilters.push(eq(t.tenantId, session.tenantId));
   }
 
-  const updates: Record<string, unknown> = { updatedAt: nowIso() };
+  const updates: Record<string, unknown> = { updatedAt: new Date() };
   for (const [k, v] of Object.entries(body)) {
     if (!READ_ONLY.has(k)) updates[k] = v;
   }
@@ -280,9 +291,20 @@ export async function PATCH(
   delete updates.tenantId;
   delete updates.tenant_id;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await db.update(t).set(updates as any).where(and(...whereFilters));
-  return NextResponse.json({ ok: true });
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await db.update(t).set(updates as any).where(and(...whereFilters));
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("[api/db/[entity]] PATCH error:", err);
+    return NextResponse.json(
+      {
+        error: "Internal error",
+        detail: err instanceof Error ? err.message : String(err),
+      },
+      { status: 500 },
+    );
+  }
 }
 
 export async function DELETE(
@@ -313,8 +335,19 @@ export async function DELETE(
     whereFilters.push(eq(t.tenantId, session.tenantId));
   }
 
-  const result = await db.delete(t).where(and(...whereFilters));
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const rowCount = (result as any)?.count ?? 0;
-  return NextResponse.json({ ok: rowCount > 0 });
+  try {
+    const result = await db.delete(t).where(and(...whereFilters));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rowCount = (result as any)?.count ?? 0;
+    return NextResponse.json({ ok: rowCount > 0 });
+  } catch (err) {
+    console.error("[api/db/[entity]] DELETE error:", err);
+    return NextResponse.json(
+      {
+        error: "Internal error",
+        detail: err instanceof Error ? err.message : String(err),
+      },
+      { status: 500 },
+    );
+  }
 }
