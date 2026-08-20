@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: app-antojos-mobile
+    runtime: node
+    region: oregon
+    plan: starter
+    branch: main
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 24.x
+      - key: NEXT_PUBLIC_DATA_SOURCE
+        value: supabase
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+        value: https://zriwcsczgnjrsdjmudab.supabase.co
+      - key: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_JWKS_URL
+        value: https://zriwcsczgnjrsdjmudab.supabase.co/auth/v1/.well-known/jwks.json
+    buildFilter:
+      paths:
+        - "**/*"
+        - "!docs/**"
+        - "!sketches/**"
+        - "!.hermes/**"
