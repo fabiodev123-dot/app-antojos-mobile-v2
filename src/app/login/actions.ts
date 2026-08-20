@@ -13,6 +13,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { clearActingTenant } from "@/lib/auth/acting";
 import type { LoginState, FieldErrors } from "./state";
 
 const loginSchema = z.object({
@@ -57,5 +58,6 @@ export async function loginAction(
 export async function logoutAction(): Promise<void> {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
+  await clearActingTenant();
   redirect("/login");
 }

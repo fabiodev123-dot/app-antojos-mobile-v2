@@ -156,7 +156,11 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json();
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { items: _ignored, tenantId: _t, tenant_id: _t2, ...pedidoFields } = body;
-  const updates = { ...pedidoFields, updatedAt: nowIso() };
+  const sanitized: Record<string, unknown> = { updatedAt: new Date() };
+  for (const [k, v] of Object.entries(pedidoFields)) {
+    sanitized[k] = maybeToDate(v);
+  }
+  const updates = sanitized;
 
   const filters = [eq(pedidosTable.id, id)];
   if (session.tenantId && !session.isSuperAdmin) {
@@ -188,4 +192,17 @@ export async function DELETE(req: NextRequest) {
 
   await db.delete(pedidosTable).where(and(...filters));
   return NextResponse.json({ ok: true });
+}
+
+function maybeToDate(v: unknown): unknown {
+  if (typeof v !== "string") return v;
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(v)) {
+    const d = new Date(v);
+    return Number.isNaN(d.getTime()) ? v : d;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    const d = new Date(`${v}T00:00:00Z`);
+    return Number.isNaN(d.getTime()) ? v : d;
+  }
+  return v;
 }
