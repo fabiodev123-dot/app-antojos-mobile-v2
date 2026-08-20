@@ -26,10 +26,10 @@ export default function LoginPage() {
           </div>
           <div>
             <h1 className="font-heading text-2xl font-semibold tracking-tight">
-              Antojos
+              Panel Super Admin
             </h1>
             <p className="text-muted-foreground mt-1 text-sm">
-              Ingresá con tu cuenta para administrar tu negocio
+              Antojos Platform — acceso restringido
             </p>
           </div>
         </header>
@@ -41,7 +41,7 @@ export default function LoginPage() {
             name="email"
             label="Email"
             type="email"
-            placeholder="tu@email.com"
+            placeholder="admin@antojos.com"
             autoComplete="email"
             autoFocus
             required
@@ -89,9 +89,8 @@ export default function LoginPage() {
 
         {/* FOOTER */}
         <p className="text-muted-foreground text-center text-xs">
-          ¿Sos super admin?{" "}
-          <Link href="/admin/login" className="hover:text-foreground underline">
-            Ingresá acá
+          <Link href="/" className="hover:text-foreground underline">
+            Volver a la app
           </Link>
         </p>
       </div>
@@ -135,7 +134,7 @@ function Field({
         placeholder={placeholder}
         autoComplete={autoComplete}
         autoFocus={autoFocus}
-        required
+        required={required}
         aria-invalid={Boolean(error)}
         className="h-11 rounded-lg"
       />

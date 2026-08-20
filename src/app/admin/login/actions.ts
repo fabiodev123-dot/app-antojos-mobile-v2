@@ -1,13 +1,12 @@
 "use server";
 
 /**
- * Login / logout server actions para tenant users (la app de Antojos).
+ * Login / logout server actions.
  *
- * - loginAction: signInWithPassword + redirect a /
+ * - loginAction: signInWithPassword + redirect a /admin
  * - logoutAction: signOut + redirect a /login
  *
  * Validación con Zod. Errores se devuelven al client (no se lanzan).
- * Acepta solo tenant users: si la cuenta es de super admin, rechaza.
  */
 
 import { redirect } from "next/navigation";
@@ -54,17 +53,17 @@ export async function loginAction(
   const { data: superAdmin } = await supabase
     .from("super_admins" as never)
     .select("id")
-    .maybeSingle() as { data: { id: string } | null };
+    .single() as { data: { id: string } | null };
 
-  if (superAdmin) {
+  if (!superAdmin) {
     await supabase.auth.signOut();
     return {
       ok: false,
-      error: "Esta cuenta es de super admin. Ingresá desde /admin/login.",
+      error: "Esta cuenta no tiene permisos de super admin.",
     };
   }
 
-  redirect("/");
+  redirect("/admin");
 }
 
 export async function logoutAction(): Promise<void> {
