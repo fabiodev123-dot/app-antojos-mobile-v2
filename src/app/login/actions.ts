@@ -50,21 +50,12 @@ export async function loginAction(
     };
   }
 
-  // Verificamos que sea super admin antes de mandarlo a /admin
   const { data: superAdmin } = await supabase
     .from("super_admins" as never)
     .select("id")
-    .single() as { data: { id: string } | null };
+    .maybeSingle() as { data: { id: string } | null };
 
-  if (!superAdmin) {
-    await supabase.auth.signOut();
-    return {
-      ok: false,
-      error: "Esta cuenta no tiene permisos de super admin.",
-    };
-  }
-
-  redirect("/admin");
+  redirect(superAdmin ? "/admin" : "/");
 }
 
 export async function logoutAction(): Promise<void> {

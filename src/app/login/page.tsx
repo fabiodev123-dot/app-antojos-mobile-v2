@@ -26,10 +26,10 @@ export default function LoginPage() {
           </div>
           <div>
             <h1 className="font-heading text-2xl font-semibold tracking-tight">
-              Panel Super Admin
+              Antojos
             </h1>
             <p className="text-muted-foreground mt-1 text-sm">
-              Antojos Platform — acceso restringido
+              Ingresá con tu cuenta para administrar tu negocio
             </p>
           </div>
         </header>
