@@ -61,10 +61,11 @@ export async function getSession(): Promise<Session | null> {
 
   if (!user || !user.email) return null;
 
-  const tenantId =
+  // 1. Intentar tenant_id desde el JWT (custom_access_token_hook si existe).
+  const tenantIdFromJwt =
     (user.app_metadata as { tenant_id?: string } | undefined)?.tenant_id ?? null;
 
-  // Chequear si es super admin (RLS permite self-check en super_admins).
+  // 2. Chequear si es super admin (RLS permite self-check en super_admins).
   const { data: superAdmin } = await supabase
     .from("super_admins" as never)
     .select("id")
@@ -74,12 +75,25 @@ export async function getSession(): Promise<Session | null> {
   const cookieStore = await cookies();
   const acting = cookieStore.get("acting_tenant_id")?.value;
 
+  // Super admin con acting_tenant_id cookie → usa ese tenant.
   if (superAdmin && acting) {
     return {
       user: { id: user.id, email: user.email },
       tenantId: acting,
       isSuperAdmin: true,
     };
+  }
+
+  // 3. Si tenant_id no viene del JWT, buscarlo en tenant_users (fallback).
+  let tenantId = tenantIdFromJwt;
+  if (!tenantId && !superAdmin) {
+    const { data: tu } = await supabase
+      .from("tenant_users" as never)
+      .select("tenant_id")
+      .eq("user_id", user.id)
+      .limit(1)
+      .maybeSingle() as { data: { tenant_id: string } | null };
+    tenantId = tu?.tenant_id ?? null;
   }
 
   return {
@@ -143,5 +157,13 @@ export async function requireTenantSession(): Promise<TenantSessionResult> {
 export const ENTITIES_WITH_TENANT = new Set<string>([
   "ventas_rapidas",
   "pedidos",
+  "pedido_items",
   "movimientos_stock",
+  "categorias",
+  "productos",
+  "ingredientes",
+  "recetas",
+  "clientes",
+  "gastos",
+  "cierres",
 ]);

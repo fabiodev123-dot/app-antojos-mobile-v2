@@ -1,21 +1,19 @@
 /**
- * Proxy (ex-middleware en Next.js 16) — protege toda la app autenticada.
+ * Middleware de autenticación con @supabase/ssr para Next.js App Router.
  *
- * - /admin/* requiere ser super admin (redirige a /login si no).
- * - /, /pedidos, /productos, etc. requieren session (cualquier user autenticado).
- * - /login, /admin/login, /api/*, assets: pasan sin chequeo.
- *
- * Las API routes (/api/db/*, /api/devices/*, etc.) tienen su propio
- * requireSession() en cada handler — el proxy solo redirige para rutas
- * de page, no para fetch.
+ * - Refresca tokens de sesión expirados en cada request.
+ * - Protege todas las rutas bajo `/` excepto `/login`, `/admin/login`, `/api/debug/*` y assets estáticos.
+ * - Rutas `/admin/*` requieren además ser super admin (redirige a /login con razón forbidden si no).
+ * - En peticiones a `/api/*` sin sesión retorna 401 JSON.
+ * - En peticiones de página sin sesión redirige a `/login?reason=unauthenticated`.
  */
 
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
 const PUBLIC_PAGE_PATHS = ["/login", "/admin/login"];
-const PUBLIC_API_PREFIXES = ["/api/"];
-const PUBLIC_ASSET_PREFIXES = ["/_next/", "/favicon"];
+const PUBLIC_API_PREFIXES = ["/api/debug/"];
+const PUBLIC_ASSET_PREFIXES = ["/_next/", "/favicon.ico", "/manifest.webmanifest"];
 
 function isPublicPath(pathname: string): boolean {
   if (PUBLIC_PAGE_PATHS.includes(pathname)) return true;
@@ -24,7 +22,7 @@ function isPublicPath(pathname: string): boolean {
   return false;
 }
 
-export async function proxy(request: NextRequest) {
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (isPublicPath(pathname)) {
@@ -35,11 +33,11 @@ export async function proxy(request: NextRequest) {
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
   if (!url || !key) {
-    console.error("[proxy] Faltan env vars de Supabase");
+    console.error("[middleware] Faltan env vars de Supabase");
     return response;
   }
 
@@ -65,25 +63,33 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   if (!user) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json(
+        { ok: false, error: "No autenticado" },
+        { status: 401 },
+      );
+    }
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("reason", "unauthenticated");
     return NextResponse.redirect(loginUrl);
   }
 
+  // Protección para rutas /admin/* (excepto /admin/login que ya fue filtrada como pública)
   if (pathname.startsWith("/admin")) {
     const { data: superAdmin } = await supabase
       .from("super_admins" as never)
       .select("id")
       .eq("user_id", user.id)
-      .single() as { data: { id: string } | null };
+      .maybeSingle() as { data: { id: string } | null };
 
     if (!superAdmin) {
       const loginUrl = new URL("/login", request.url);
       loginUrl.searchParams.set("reason", "forbidden");
       const redirectResponse = NextResponse.redirect(loginUrl);
-      redirectResponse.cookies.delete(
-        "sb-" + url.split(".")[0].split("//")[1] + "-auth-token",
-      );
+      const projectRef = url.split(".")[0]?.split("//")[1];
+      if (projectRef) {
+        redirectResponse.cookies.delete(`sb-${projectRef}-auth-token`);
+      }
       return redirectResponse;
     }
   }
@@ -93,6 +99,6 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

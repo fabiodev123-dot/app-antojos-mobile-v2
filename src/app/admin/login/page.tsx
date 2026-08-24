@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useCallback, forwardRef } from "react";
 import Link from "next/link";
 import { Shield, LogIn, AlertCircle, Loader2 } from "lucide-react";
 import { loginAction } from "./actions";
@@ -14,6 +14,17 @@ export default function LoginPage() {
   const [state, formAction, pending] = useActionState<LoginState, FormData>(
     loginAction,
     INITIAL_LOGIN_STATE
+  );
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  const wrappedAction = useCallback(
+    (formData: FormData) => {
+      if (emailRef.current) formData.set("email", emailRef.current.value);
+      if (passwordRef.current) formData.set("password", passwordRef.current.value);
+      return formAction(formData);
+    },
+    [formAction]
   );
 
   return (
@@ -35,8 +46,9 @@ export default function LoginPage() {
         </header>
 
         {/* FORM */}
-        <form action={formAction} className="flex flex-col gap-4" noValidate>
+        <form action={wrappedAction} className="flex flex-col gap-4" noValidate>
           <Field
+            ref={emailRef}
             id="email"
             name="email"
             label="Email"
@@ -48,6 +60,7 @@ export default function LoginPage() {
             error={state?.fieldErrors?.email}
           />
           <Field
+            ref={passwordRef}
             id="password"
             name="password"
             label="Contraseña"
@@ -98,17 +111,7 @@ export default function LoginPage() {
   );
 }
 
-function Field({
-  id,
-  name,
-  label,
-  type = "text",
-  placeholder,
-  autoComplete,
-  autoFocus,
-  required,
-  error,
-}: {
+const Field = forwardRef<HTMLInputElement, {
   id: string;
   name: string;
   label: string;
@@ -118,7 +121,10 @@ function Field({
   autoFocus?: boolean;
   required?: boolean;
   error?: string;
-}) {
+}>(function Field(
+  { id, name, label, type = "text", placeholder, autoComplete, autoFocus, required, error },
+  ref,
+) {
   return (
     <div className="flex flex-col gap-1.5">
       <label
@@ -128,6 +134,7 @@ function Field({
         {label}
       </label>
       <Input
+        ref={ref}
         id={id}
         name={name}
         type={type}
@@ -141,4 +148,4 @@ function Field({
       {error ? <p className="text-destructive text-xs">{error}</p> : null}
     </div>
   );
-}
+});

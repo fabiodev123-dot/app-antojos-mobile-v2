@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { UserPlus, Trash2, Loader2, Copy, Check } from "lucide-react";
+import { UserPlus, Trash2, Loader2, Copy, Check, Eye, EyeOff } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -46,6 +46,9 @@ export function UsersManagement({
 }) {
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("operador");
+  const [customPassword, setCustomPassword] = useState("");
+  const [useCustomPassword, setUseCustomPassword] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [isPending, startTransition] = useTransition();
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ ok: boolean; msg: string } | null>(
@@ -77,16 +80,26 @@ export function UsersManagement({
 
   function handleCreate() {
     if (!email || isPending) return;
+    if (useCustomPassword && (!customPassword || customPassword.length < 6)) {
+      setFeedback({ ok: false, msg: "La contraseña debe tener al menos 6 caracteres." });
+      return;
+    }
     setFeedback(null);
     setCreated(null);
     startTransition(async () => {
       const result = await createTenantUserAction(
-        { tenantId, email, role },
+        {
+          tenantId,
+          email,
+          role,
+          ...(useCustomPassword ? { password: customPassword } : {}),
+        },
         tenantName,
       );
       if (result.ok) {
         setCreated({ email: result.email, password: result.password });
         setEmail("");
+        setCustomPassword("");
       } else {
         setFeedback({ ok: false, msg: result.error });
       }
@@ -242,6 +255,41 @@ export function UsersManagement({
               </SelectContent>
             </Select>
           </div>
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-2 text-xs">
+              <input
+                type="checkbox"
+                checked={useCustomPassword}
+                onChange={(e) => {
+                  setUseCustomPassword(e.target.checked);
+                  if (!e.target.checked) setCustomPassword("");
+                }}
+                disabled={isPending}
+                className="accent-primary h-3 w-3"
+              />
+              Yo elijo la contraseña
+            </label>
+            {useCustomPassword && (
+              <div className="relative">
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Contraseña personalizada"
+                  value={customPassword}
+                  onChange={(e) => setCustomPassword(e.target.value)}
+                  disabled={isPending}
+                  className="h-9 pr-9"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-muted-foreground hover:text-foreground absolute right-2 top-1/2 -translate-y-1/2"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                </button>
+              </div>
+            )}
+          </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button
               type="button"
@@ -250,7 +298,7 @@ export function UsersManagement({
               className="flex-1"
             >
               <UserPlus className="size-3.5" />
-              {isPending ? "Creando…" : "Crear nuevo (genera password)"}
+              {isPending ? "Creando…" : useCustomPassword ? "Crear con mi contraseña" : "Crear nuevo (genera password)"}
             </Button>
             <Button
               type="button"
@@ -263,9 +311,9 @@ export function UsersManagement({
             </Button>
           </div>
           <p className="text-muted-foreground text-[10px]">
-            "Crear" genera una password fuerte de 20 caracteres y muestra el
-            resultado una sola vez. "Agregar" usa un usuario que ya existe en
-            Supabase.
+            {useCustomPassword
+              ? "La contraseña se guarda tal como la escribís. No se muestra de vuelta."
+              : "\"Crear\" genera una password fuerte de 20 caracteres y muestra el resultado una sola vez. \"Agregar\" usa un usuario que ya existe en Supabase."}
           </p>
         </div>
 

@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { requireSuperAdmin } from "@/lib/auth/context";
 import { getTenantDetail, getTenantRevenue } from "@/lib/services/admin-service";
 import { formatFechaLarga, formatPrecio } from "@/lib/format";
-import { UsersList, RecentOrdersTable, OrdersBarChart } from "./tenant-detail-components";
+import { RecentOrdersTable, OrdersBarChart } from "./tenant-detail-components";
 import { TenantSettingsCard } from "./tenant-settings-card";
 import { UsersManagement } from "./users-management";
 

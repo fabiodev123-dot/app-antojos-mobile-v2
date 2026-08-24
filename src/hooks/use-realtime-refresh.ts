@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 
@@ -30,7 +30,8 @@ export function useRealtimeRefresh(tables: string[]) {
     const supabase = createBrowserClient(url, key);
     const channel = supabase.channel("admin-monitor-realtime");
 
-    for (const table of tables) {
+    const tableList = tablesKey.split(",").filter(Boolean);
+    for (const table of tableList) {
       channel.on(
         "postgres_changes",
         { event: "*", schema: "public", table },

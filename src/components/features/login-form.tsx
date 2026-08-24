@@ -2,7 +2,8 @@
 
 export const dynamic = "force-dynamic";
 
-import { useActionState } from "react";
+import { useActionState, useRef, useCallback } from "react";
+import { forwardRef } from "react";
 import Link from "next/link";
 import { Shield, LogIn, AlertCircle, Loader2 } from "lucide-react";
 import { loginAction } from "@/app/login/actions";
@@ -14,6 +15,17 @@ export default function LoginForm() {
   const [state, formAction, pending] = useActionState<LoginState, FormData>(
     loginAction,
     INITIAL_LOGIN_STATE
+  );
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
+
+  const wrappedAction = useCallback(
+    (formData: FormData) => {
+      if (emailRef.current) formData.set("email", emailRef.current.value);
+      if (passwordRef.current) formData.set("password", passwordRef.current.value);
+      return formAction(formData);
+    },
+    [formAction]
   );
 
   return (
@@ -33,8 +45,9 @@ export default function LoginForm() {
           </div>
         </header>
 
-        <form action={formAction} className="flex flex-col gap-4" noValidate>
+        <form action={wrappedAction} className="flex flex-col gap-4" noValidate>
           <Field
+            ref={emailRef}
             id="email"
             name="email"
             label="Email"
@@ -46,6 +59,7 @@ export default function LoginForm() {
             error={state?.fieldErrors?.email}
           />
           <Field
+            ref={passwordRef}
             id="password"
             name="password"
             label="Contraseña"
@@ -96,6 +110,45 @@ export default function LoginForm() {
   );
 }
 
+const Field = forwardRef<HTMLInputElement, {
+  id: string;
+  name: string;
+  label: string;
+  type?: string;
+  placeholder?: string;
+  autoComplete?: string;
+  autoFocus?: boolean;
+  required?: boolean;
+  error?: string;
+}>(function Field(
+  { id, name, label, type = "text", placeholder, autoComplete, autoFocus, required, error },
+  ref,
+) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label
+        htmlFor={id}
+        className="text-foreground/70 text-[11px] font-semibold uppercase tracking-wider"
+      >
+        {label}
+      </label>
+      <Input
+        ref={ref}
+        id={id}
+        name={name}
+        type={type}
+        placeholder={placeholder}
+        autoComplete={autoComplete}
+        autoFocus={autoFocus}
+        required={required}
+        aria-invalid={Boolean(error)}
+        className="h-11 rounded-lg"
+      />
+      {error ? <p className="text-destructive text-xs">{error}</p> : null}
+    </div>
+  );
+});
+
 function Field({
   id,
   name,
@@ -132,7 +185,7 @@ function Field({
         placeholder={placeholder}
         autoComplete={autoComplete}
         autoFocus={autoFocus}
-        required
+        required={required}
         aria-invalid={Boolean(error)}
         className="h-11 rounded-lg"
       />

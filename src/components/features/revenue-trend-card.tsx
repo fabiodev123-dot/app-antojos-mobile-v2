@@ -10,7 +10,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { formatPrecio } from "@/lib/format";
-import { cn } from "@/lib/utils";
+
 import type { RevenueTrendPoint } from "@/lib/services/admin-service";
 
 const WIDTH = 800;

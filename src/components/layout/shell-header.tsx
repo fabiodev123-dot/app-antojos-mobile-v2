@@ -13,7 +13,7 @@ export function ShellHeader({
   right?: ReactNode;
 }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
+    <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-3 px-4">
         <Link href="/" className="flex items-center gap-2.5 min-w-0">
           <Logo size="sm" />

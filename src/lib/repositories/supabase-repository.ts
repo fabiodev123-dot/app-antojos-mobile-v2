@@ -14,20 +14,14 @@
  */
 import { newId, nowIso } from "./types";
 import type { BaseEntity } from "@/lib/types";
-import type {
-  CreateInput,
-  Repository,
-  UpdateInput,
-} from "./types";
+import type { Repository } from "./types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // BUS DE VERSIONES (idéntico al patrón del reactive-repository local).
 // ─────────────────────────────────────────────────────────────────────────────
 
 declare global {
-  // eslint-disable-next-line no-var
   var __antojos_supabase_versions__: Map<unknown, number> | undefined;
-  // eslint-disable-next-line no-var
   var __antojos_supabase_listeners__: Set<() => void> | undefined;
 }
 
@@ -288,7 +282,7 @@ export function createSupabaseRepository<
       return true;
     },
 
-    replaceAll(items) {
+    replaceAll() {
       // No soportado en API genérica; usar replaceAll solo en seed inicial
       // desde server-side. Para client, este método no debería llamarse.
       throw new Error(

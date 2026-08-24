@@ -32,6 +32,7 @@ const createUserSchema = z.object({
   tenantId: z.string().min(1),
   email: z.string().email("Email inválido").max(255),
   role: z.enum(["owner", "admin", "operador"]),
+  password: z.string().min(6, "Mínimo 6 caracteres").max(128).optional(),
 });
 
 function generateStrongPassword(): string {
@@ -64,7 +65,7 @@ function generateStrongPassword(): string {
 }
 
 export async function createTenantUserAction(
-  input: { tenantId: string; email: string; role: "owner" | "admin" | "operador" },
+  input: { tenantId: string; email: string; role: "owner" | "admin" | "operador"; password?: string },
   tenantLabel?: string,
 ): Promise<CreateUserResult> {
   const ctx = await requireSuperAdmin();
@@ -76,7 +77,7 @@ export async function createTenantUserAction(
   }
 
   const admin = createSupabaseAdminClient();
-  const { tenantId, email, role } = parsed.data;
+  const { tenantId, email, role, password: customPassword } = parsed.data;
 
   const existing = await findUserByEmail(admin, email);
   if (existing) {
@@ -86,7 +87,7 @@ export async function createTenantUserAction(
     };
   }
 
-  const password = generateStrongPassword();
+  const password = customPassword || generateStrongPassword();
 
   const { data: created, error: createError } = await admin.auth.admin.createUser({
     email,

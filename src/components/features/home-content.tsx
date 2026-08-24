@@ -174,6 +174,7 @@ export default function HomeContent() {
                   className="group flex items-stretch gap-0 overflow-hidden rounded-xl border border-border bg-card hover-lift hover:border-primary/40"
                 >
                   {p.items[0]?.imagenProducto ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={p.items[0].imagenProducto}
                       alt=""
@@ -245,6 +246,7 @@ export default function HomeContent() {
                   className="flex items-center gap-3 text-sm rounded-lg px-2 py-1.5 hover:bg-muted/40 transition-colors"
                 >
                   {p.imagen ? (
+                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={p.imagen}
                       alt=""

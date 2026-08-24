@@ -20,7 +20,7 @@ import { type NextRequest, NextResponse } from "next/server";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { pedidos as pedidosTable, pedidoItems as pedidoItemsTable } from "@/lib/db/schema";
-import { newId, nowIso } from "@/lib/repositories/types";
+import { newId } from "@/lib/repositories/types";
 import { requireSession } from "@/lib/auth/session";
 
 export async function GET(req: NextRequest) {

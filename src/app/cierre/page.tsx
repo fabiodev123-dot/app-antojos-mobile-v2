@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Mail, MessageCircle, TrendingUp, TrendingDown, Scale, MoonStar, Save, Plus, Trash2, Loader2, FileText, FileSpreadsheet, Boxes, ShoppingCart, AlertTriangle, Zap } from "lucide-react";
+import { Mail, MessageCircle, TrendingUp, TrendingDown, Scale, MoonStar, Save, Plus, Trash2, Loader2, FileText, FileSpreadsheet, Boxes, ShoppingCart, AlertTriangle } from "lucide-react";
 import {
   cierresRepository,
   gastosRepository,

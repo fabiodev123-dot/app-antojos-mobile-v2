@@ -9,7 +9,7 @@
  *   - public/icon-maskable-512.png (PWA adaptive, 40% safe zone)
  */
 import sharp from "sharp";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 

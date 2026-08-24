@@ -24,9 +24,7 @@ import * as schema from "./schema";
 
 // Singleton del cliente postgres (evita connection leaks en hot-reload de Next.js).
 declare global {
-  // eslint-disable-next-line no-var
   var __antojosPgClient: ReturnType<typeof postgres> | undefined;
-  // eslint-disable-next-line no-var
   var __antojosDb: ReturnType<typeof drizzle> | undefined;
 }
 

@@ -18,7 +18,7 @@ import { EmptyState } from "@/components/features/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatHora, formatPrecio } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import type { EstadoPedido, Pedido, Producto } from "@/lib/types";
+import type { EstadoPedido, Pedido } from "@/lib/types";
 
 const ESTADOS: Array<{ value: EstadoPedido | "todos"; label: string }> = [
   { value: "todos", label: "Todos" },
@@ -62,12 +62,6 @@ export default function PedidosPage() {
     return map;
   }, [productos]);
 
-  // Mapa productoId → Producto (para mostrar nombre + emoji en el indicador).
-  const productoById = useMemo(() => {
-    const map = new Map<string, Producto>();
-    for (const p of productos) map.set(p.id, p);
-    return map;
-  }, [productos]);
 
   // Categorías que agruparemos en cada tab. Incluye la "categoría" OTROS
   // solo si AL MENOS 1 pedido tiene items cuyo producto no existe en `productoCategoria`.

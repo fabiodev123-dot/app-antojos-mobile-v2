@@ -110,14 +110,21 @@ const timestamps = {
 // TABLAS
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const categorias = pgTable("categorias", {
-  id: text("id").primaryKey(),
-  nombre: text("nombre").notNull(),
-  emoji: text("emoji"),
-  colorDefault: colorPlatoEnum("color_default").notNull(),
-  activo: boolean("activo").notNull().default(true),
-  ...timestamps,
-});
+export const categorias = pgTable(
+  "categorias",
+  {
+    id: text("id").primaryKey(),
+    nombre: text("nombre").notNull(),
+    emoji: text("emoji"),
+    colorDefault: colorPlatoEnum("color_default").notNull(),
+    activo: boolean("activo").notNull().default(true),
+    tenantId: text("tenant_id"),
+    ...timestamps,
+  },
+  (t) => ({
+    tenantIdx: index("categorias_tenant_idx").on(t.tenantId),
+  }),
+);
 
 export const productos = pgTable(
   "productos",
@@ -135,19 +142,23 @@ export const productos = pgTable(
     stockActual: integer("stock_actual").notNull().default(0),
     stockMinimo: integer("stock_minimo").notNull().default(0),
     activo: boolean("activo").notNull().default(true),
+    tenantId: text("tenant_id"),
     ...timestamps,
   },
   (t) => ({
     categoriaIdx: index("productos_categoria_idx").on(t.categoriaId),
     activoIdx: index("productos_activo_idx").on(t.activo),
+    tenantIdx: index("productos_tenant_idx").on(t.tenantId),
   }),
 );
 
-export const ingredientes = pgTable("ingredientes", {
-  id: text("id").primaryKey(),
-  nombre: text("nombre").notNull(),
-  unidad: unidadMedidaEnum("unidad").notNull(),
-stockActual: numeric("stock_actual", {
+export const ingredientes = pgTable(
+  "ingredientes",
+  {
+    id: text("id").primaryKey(),
+    nombre: text("nombre").notNull(),
+    unidad: unidadMedidaEnum("unidad").notNull(),
+    stockActual: numeric("stock_actual", {
       precision: 10,
       scale: 3,
       mode: "number",
@@ -166,9 +177,14 @@ stockActual: numeric("stock_actual", {
       scale: 2,
       mode: "number",
     }),
-  activo: boolean("activo").notNull().default(true),
-  ...timestamps,
-});
+    activo: boolean("activo").notNull().default(true),
+    tenantId: text("tenant_id"),
+    ...timestamps,
+  },
+  (t) => ({
+    tenantIdx: index("ingredientes_tenant_idx").on(t.tenantId),
+  }),
+);
 
 // M:N producto-ingrediente con cantidad (la "receta" del producto).
 export const recetas = pgTable(
@@ -186,6 +202,7 @@ export const recetas = pgTable(
       scale: 3,
       mode: "number",
     }).notNull(),
+    tenantId: text("tenant_id"),
     ...timestamps,
   },
   (t) => ({
@@ -195,6 +212,7 @@ export const recetas = pgTable(
     ),
     productoIdx: index("recetas_producto_idx").on(t.productoId),
     ingredienteIdx: index("recetas_ingrediente_idx").on(t.ingredienteId),
+    tenantIdx: index("recetas_tenant_idx").on(t.tenantId),
   }),
 );
 
@@ -215,17 +233,24 @@ export const ventasRapidas = pgTable(
   }),
 );
 
-export const clientes = pgTable("clientes", {
-  id: text("id").primaryKey(),
-  nombre: text("nombre").notNull(),
-  telefono: text("telefono").notNull(),
-  direccion: text("direccion"),
-  email: text("email"),
-  notas: text("notas"),
-  totalPedidos: integer("total_pedidos").notNull().default(0),
-  ultimaCompra: date("ultima_compra"),
-  ...timestamps,
-});
+export const clientes = pgTable(
+  "clientes",
+  {
+    id: text("id").primaryKey(),
+    nombre: text("nombre").notNull(),
+    telefono: text("telefono").notNull(),
+    direccion: text("direccion"),
+    email: text("email"),
+    notas: text("notas"),
+    totalPedidos: integer("total_pedidos").notNull().default(0),
+    ultimaCompra: date("ultima_compra"),
+    tenantId: text("tenant_id"),
+    ...timestamps,
+  },
+  (t) => ({
+    tenantIdx: index("clientes_tenant_idx").on(t.tenantId),
+  }),
+);
 
 export const pedidos = pgTable(
   "pedidos",
@@ -348,10 +373,12 @@ export const gastos = pgTable(
       mode: "number",
     }).notNull(),
     descripcion: text("descripcion").notNull(),
+    tenantId: text("tenant_id"),
     ...timestamps,
   },
   (t) => ({
     fechaIdx: index("gastos_fecha_idx").on(t.fecha),
+    tenantIdx: index("gastos_tenant_idx").on(t.tenantId),
   }),
 );
 
@@ -379,10 +406,12 @@ export const cierresDiarios = pgTable(
     notas: text("notas"),
     enviadoEmail: boolean("enviado_email").notNull().default(false),
     enviadoWsp: boolean("enviado_wsp").notNull().default(false),
+    tenantId: text("tenant_id"),
     ...timestamps,
   },
   (t) => ({
     fechaUnq: uniqueIndex("cierres_fecha_unq").on(t.fecha),
+    tenantIdx: index("cierres_tenant_idx").on(t.tenantId),
   }),
 );
 
