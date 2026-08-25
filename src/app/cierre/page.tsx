@@ -63,8 +63,8 @@ import {
   type CierreData,
   type PeriodoTipo,
 } from "@/lib/export/cierre-text";
-import { generateCierrePdf } from "@/lib/export/cierre-pdf";
-import { generateCierreExcel } from "@/lib/export/cierre-excel";
+// generateCierrePdf y generateCierreExcel se importan dinámicamente (code-split)
+// para no cargar ExcelJS (~400kB) y React-PDF (~200kB) en el bundle principal.
 import { downloadBlob } from "@/lib/export/download";
 import { getStartOfWeek, getWeekDays, formatWeekLabel } from "@/lib/utils/week";
 import {
@@ -213,6 +213,7 @@ export default function CierrePage() {
   async function handlePdf() {
     setGenerating("pdf");
     try {
+      const { generateCierrePdf } = await import("@/lib/export/cierre-pdf");
       const blob = await generateCierrePdf(activeData);
       await downloadBlob(blob, filenameForCierre(activeData.fecha, "pdf", periodo));
       toast.success(`PDF (${periodo}) descargado`);
@@ -226,6 +227,7 @@ export default function CierrePage() {
   async function handleExcel() {
     setGenerating("xlsx");
     try {
+      const { generateCierreExcel } = await import("@/lib/export/cierre-excel");
       const blob = await generateCierreExcel(activeData);
       await downloadBlob(blob, filenameForCierre(activeData.fecha, "xlsx", periodo));
       toast.success(`Excel (${periodo}) descargado`);

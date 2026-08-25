@@ -1,12 +1,13 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { PwaInstall } from "@/components/features/pwa-install";
 import { PwaRegister } from "@/components/features/pwa-register";
 import { VentaRapidaFab } from "@/components/layout/venta-rapida-fab";
 import { useDeviceHeartbeat } from "@/hooks/use-device-heartbeat";
+import { initStorage } from "@/lib/storage/local-storage";
 
 export function AppShell({
   children,
@@ -16,6 +17,11 @@ export function AppShell({
   topBar?: ReactNode;
 }) {
   useDeviceHeartbeat();
+
+  useEffect(() => {
+    initStorage();
+  }, []);
+
   return (
     <div className="min-h-dvh bg-background text-foreground">
       {topBar}
