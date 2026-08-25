@@ -84,6 +84,8 @@ async function apiDelete(id: string): Promise<void> {
   if (!res.ok) throw new Error(`[pedidos-repo] DELETE ${id} failed: ${res.status}`);
 }
 
+let lastFetchAt = 0;
+
 export const pedidosSupabaseRepository: Repository<Pedido> & {
   ensureLoaded(forceRefresh?: boolean): Promise<void>;
   getVersion(): number;
@@ -182,8 +184,6 @@ export const pedidosSupabaseRepository: Repository<Pedido> & {
       "[pedidos-repo] replaceAll no soportado en client. Usar seed-server-side.",
     );
   },
-
-  let lastFetchAt = 0;
 
   async ensureLoaded(forceRefresh = false) {
     if (pedidosState.loaded && !forceRefresh && Date.now() - lastFetchAt < STALE_MS) return;
