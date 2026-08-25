@@ -102,7 +102,7 @@ export function dbRowToFrontend<T extends BaseEntity>(row: Record<string, unknow
 // ─────────────────────────────────────────────────────────────────────────────
 
 const STALE_MS = 30_000; // 30s — después de esto, el cache se considera stale
-const inflight = new Map<string, { promise: Promise<unknown>; ts: number }>();
+const inflight = new Map<string, { promise: Promise<unknown>; ts: number; controller: AbortController }>();
 
 function cacheKey(url: string): string {
   return url;
@@ -121,18 +121,28 @@ async function apiGet<T>(entity: string, id?: string): Promise<T> {
     return existing.promise as Promise<T>;
   }
 
+  // Cancel stale in-flight request before starting a new one
+  if (existing) {
+    existing.controller.abort();
+    inflight.delete(key);
+  }
+
   const controller = new AbortController();
   const promise = fetch(url, { credentials: "same-origin", signal: controller.signal })
     .then((res) => {
       if (!res.ok) throw new Error(`[supabase-repo] GET ${entity} ${id ?? "list"} failed: ${res.status}`);
       return res.json() as Promise<T>;
     })
+    .catch((err) => {
+      // Don't surface AbortError — we intentionally cancelled it
+      if (err?.name === "AbortError") throw new Error("Request cancelled (superseded)");
+      throw err;
+    })
     .finally(() => {
-      // Keep in cache for dedup window even after completion
       setTimeout(() => inflight.delete(key), 5_000);
     });
 
-  inflight.set(key, { promise, ts: now });
+  inflight.set(key, { promise, ts: now, controller });
   return promise;
 }
 

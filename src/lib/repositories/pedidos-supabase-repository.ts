@@ -29,7 +29,7 @@ const PEDIDO_REPO_KEY = Symbol("pedidos");
 
 // ── Dedupe + AbortController + TTL ──────────────────────────────────────────
 const STALE_MS = 30_000;
-const inflight = new Map<string, { promise: Promise<unknown>; ts: number }>();
+const inflight = new Map<string, { promise: Promise<unknown>; ts: number; controller: AbortController }>();
 
 async function apiGet<T>(id?: string): Promise<T> {
   const url = id ? `/api/db/pedidos?id=${encodeURIComponent(id)}` : "/api/db/pedidos";
@@ -41,17 +41,26 @@ async function apiGet<T>(id?: string): Promise<T> {
     return existing.promise as Promise<T>;
   }
 
+  if (existing) {
+    existing.controller.abort();
+    inflight.delete(key);
+  }
+
   const controller = new AbortController();
   const promise = fetch(url, { credentials: "same-origin", signal: controller.signal })
     .then((res) => {
       if (!res.ok) throw new Error(`[pedidos-repo] GET ${id ?? "list"} failed: ${res.status}`);
       return res.json() as Promise<T>;
     })
+    .catch((err) => {
+      if (err?.name === "AbortError") throw new Error("Request cancelled (superseded)");
+      throw err;
+    })
     .finally(() => {
       setTimeout(() => inflight.delete(key), 5_000);
     });
 
-  inflight.set(key, { promise, ts: now });
+  inflight.set(key, { promise, ts: now, controller });
   return promise;
 }
 

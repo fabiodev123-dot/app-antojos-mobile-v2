@@ -17,7 +17,7 @@
  * - GET filtra por tenant (excepto super admin).
  */
 import { type NextRequest, NextResponse } from "next/server";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { pedidos as pedidosTable, pedidoItems as pedidoItemsTable } from "@/lib/db/schema";
 import { newId } from "@/lib/repositories/types";
@@ -38,61 +38,153 @@ export async function GET(req: NextRequest) {
     } else if (session.isSuperAdmin && filterTenant) {
       filters.push(eq(pedidosTable.tenantId, filterTenant));
     }
-    const pedidoRows = await db
-      .select()
+
+    // Un solo query con LEFT JOIN: pedido + items
+    const rows = await db
+      .select({
+        id: pedidosTable.id,
+        numero: pedidosTable.numero,
+        clienteId: pedidosTable.clienteId,
+        nombreCliente: pedidosTable.nombreCliente,
+        telefonoCliente: pedidosTable.telefonoCliente,
+        direccionEntrega: pedidosTable.direccionEntrega,
+        subtotal: pedidosTable.subtotal,
+        envio: pedidosTable.envio,
+        total: pedidosTable.total,
+        estado: pedidosTable.estado,
+        canal: pedidosTable.canal,
+        tipoEntrega: pedidosTable.tipoEntrega,
+        observaciones: pedidosTable.observaciones,
+        fecha: pedidosTable.fecha,
+        hora: pedidosTable.hora,
+        cerradoAt: pedidosTable.cerradoAt,
+        entregadoAt: pedidosTable.entregadoAt,
+        tenantId: pedidosTable.tenantId,
+        createdAt: pedidosTable.createdAt,
+        updatedAt: pedidosTable.updatedAt,
+        itemId: pedidoItemsTable.id,
+        itemProductoId: pedidoItemsTable.productoId,
+        itemNombre: pedidoItemsTable.nombre,
+        itemCantidad: pedidoItemsTable.cantidad,
+        itemPrecioUnitario: pedidoItemsTable.precioUnitario,
+        itemSubtotal: pedidoItemsTable.subtotal,
+        itemNotas: pedidoItemsTable.notas,
+        itemTenantId: pedidoItemsTable.tenantId,
+        itemCreatedAt: pedidoItemsTable.createdAt,
+        itemUpdatedAt: pedidoItemsTable.updatedAt,
+      })
       .from(pedidosTable)
-      .where(and(...filters))
-      .limit(1);
-    const pedido = pedidoRows[0];
-    if (!pedido) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    const items = await db.select().from(pedidoItemsTable).where(eq(pedidoItemsTable.pedidoId, id));
+      .leftJoin(pedidoItemsTable, eq(pedidosTable.id, pedidoItemsTable.pedidoId))
+      .where(and(...filters));
+
+    if (rows.length === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+    // Reconstruir pedido con items embebidos desde las filas del JOIN
+    const first = rows[0];
+    const items = rows
+      .filter((r) => r.itemId !== null)
+      .map((r) => ({
+        id: r.itemId,
+        pedidoId: first.id,
+        productoId: r.itemProductoId,
+        nombre: r.itemNombre,
+        cantidad: r.itemCantidad,
+        precioUnitario: r.itemPrecioUnitario,
+        subtotal: r.itemSubtotal,
+        notas: r.itemNotas,
+        tenantId: r.itemTenantId,
+        createdAt: r.itemCreatedAt,
+        updatedAt: r.itemUpdatedAt,
+      }));
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { itemId, itemProductoId, itemNombre, itemCantidad, itemPrecioUnitario, itemSubtotal, itemNotas, itemTenantId, itemCreatedAt, itemUpdatedAt, ...pedido } = first;
     return NextResponse.json({ ...pedido, items });
   }
 
-  // List con filtro tenant (si aplica).
+  // ── List con un solo query + LEFT JOIN ──────────────────────────────────────
   const limit = Number(req.nextUrl.searchParams.get("limit")) || undefined;
   const offset = Number(req.nextUrl.searchParams.get("offset")) || undefined;
 
-  let allPedidos;
+  const tenantFilters = [];
   if (session.tenantId && !session.isSuperAdmin) {
-    let query = db
-      .select()
-      .from(pedidosTable)
-      .where(eq(pedidosTable.tenantId, session.tenantId))
-      .$dynamic();
-    if (offset) query = query.offset(offset);
-    if (limit) query = query.limit(limit);
-    allPedidos = await query;
+    tenantFilters.push(eq(pedidosTable.tenantId, session.tenantId));
   } else if (session.isSuperAdmin && filterTenant) {
-    let query = db
-      .select()
-      .from(pedidosTable)
-      .where(eq(pedidosTable.tenantId, filterTenant))
-      .$dynamic();
-    if (offset) query = query.offset(offset);
-    if (limit) query = query.limit(limit);
-    allPedidos = await query;
-  } else {
-    let query = db.select().from(pedidosTable).$dynamic();
-    if (offset) query = query.offset(offset);
-    if (limit) query = query.limit(limit);
-    allPedidos = await query;
+    tenantFilters.push(eq(pedidosTable.tenantId, filterTenant));
   }
-  if (allPedidos.length === 0) return NextResponse.json([]);
-  const ids = allPedidos.map((p) => p.id);
-  const allItems = await db
-    .select()
-    .from(pedidoItemsTable)
-    .where(inArray(pedidoItemsTable.pedidoId, ids));
-  const itemsByPedido = new Map<string, unknown[]>();
-  for (const item of allItems) {
-    const arr = (itemsByPedido.get(item.pedidoId) as unknown[] | undefined) ?? [];
-    arr.push(item);
-    itemsByPedido.set(item.pedidoId, arr);
+
+  const whereClause = tenantFilters.length > 0 ? and(...tenantFilters) : undefined;
+
+  let query = db
+    .select({
+      id: pedidosTable.id,
+      numero: pedidosTable.numero,
+      clienteId: pedidosTable.clienteId,
+      nombreCliente: pedidosTable.nombreCliente,
+      telefonoCliente: pedidosTable.telefonoCliente,
+      direccionEntrega: pedidosTable.direccionEntrega,
+      subtotal: pedidosTable.subtotal,
+      envio: pedidosTable.envio,
+      total: pedidosTable.total,
+      estado: pedidosTable.estado,
+      canal: pedidosTable.canal,
+      tipoEntrega: pedidosTable.tipoEntrega,
+      observaciones: pedidosTable.observaciones,
+      fecha: pedidosTable.fecha,
+      hora: pedidosTable.hora,
+      cerradoAt: pedidosTable.cerradoAt,
+      entregadoAt: pedidosTable.entregadoAt,
+      tenantId: pedidosTable.tenantId,
+      createdAt: pedidosTable.createdAt,
+      updatedAt: pedidosTable.updatedAt,
+      itemId: pedidoItemsTable.id,
+      itemProductoId: pedidoItemsTable.productoId,
+      itemNombre: pedidoItemsTable.nombre,
+      itemCantidad: pedidoItemsTable.cantidad,
+      itemPrecioUnitario: pedidoItemsTable.precioUnitario,
+      itemSubtotal: pedidoItemsTable.subtotal,
+      itemNotas: pedidoItemsTable.notas,
+      itemTenantId: pedidoItemsTable.tenantId,
+      itemCreatedAt: pedidoItemsTable.createdAt,
+      itemUpdatedAt: pedidoItemsTable.updatedAt,
+    })
+    .from(pedidosTable)
+    .leftJoin(pedidoItemsTable, eq(pedidosTable.id, pedidoItemsTable.pedidoId))
+    .$dynamic();
+
+  if (whereClause) query = query.where(whereClause);
+  if (offset) query = query.offset(offset);
+  if (limit) query = query.limit(limit);
+
+  const rows = await query;
+
+  // Agrupar por pedido
+  const pedidoMap = new Map<string, Record<string, unknown>>();
+  for (const row of rows) {
+    if (!pedidoMap.has(row.id)) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { itemId, itemProductoId, itemNombre, itemCantidad, itemPrecioUnitario, itemSubtotal, itemNotas, itemTenantId, itemCreatedAt, itemUpdatedAt, ...pedido } = row;
+      pedidoMap.set(row.id, { ...pedido, items: [] });
+    }
+    if (row.itemId) {
+      const pedido = pedidoMap.get(row.id)!;
+      (pedido.items as unknown[]).push({
+        id: row.itemId,
+        pedidoId: row.id,
+        productoId: row.itemProductoId,
+        nombre: row.itemNombre,
+        cantidad: row.itemCantidad,
+        precioUnitario: row.itemPrecioUnitario,
+        subtotal: row.itemSubtotal,
+        notas: row.itemNotas,
+        tenantId: row.itemTenantId,
+        createdAt: row.itemCreatedAt,
+        updatedAt: row.itemUpdatedAt,
+      });
+    }
   }
-  return NextResponse.json(
-    allPedidos.map((p) => ({ ...p, items: itemsByPedido.get(p.id) ?? [] })),
-  );
+
+  return NextResponse.json(Array.from(pedidoMap.values()));
 }
 
 export async function POST(req: NextRequest) {
