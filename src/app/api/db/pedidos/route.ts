@@ -50,19 +50,33 @@ export async function GET(req: NextRequest) {
   }
 
   // List con filtro tenant (si aplica).
+  const limit = Number(req.nextUrl.searchParams.get("limit")) || undefined;
+  const offset = Number(req.nextUrl.searchParams.get("offset")) || undefined;
+
   let allPedidos;
   if (session.tenantId && !session.isSuperAdmin) {
-    allPedidos = await db
+    let query = db
       .select()
       .from(pedidosTable)
-      .where(eq(pedidosTable.tenantId, session.tenantId));
+      .where(eq(pedidosTable.tenantId, session.tenantId))
+      .$dynamic();
+    if (offset) query = query.offset(offset);
+    if (limit) query = query.limit(limit);
+    allPedidos = await query;
   } else if (session.isSuperAdmin && filterTenant) {
-    allPedidos = await db
+    let query = db
       .select()
       .from(pedidosTable)
-      .where(eq(pedidosTable.tenantId, filterTenant));
+      .where(eq(pedidosTable.tenantId, filterTenant))
+      .$dynamic();
+    if (offset) query = query.offset(offset);
+    if (limit) query = query.limit(limit);
+    allPedidos = await query;
   } else {
-    allPedidos = await db.select().from(pedidosTable);
+    let query = db.select().from(pedidosTable).$dynamic();
+    if (offset) query = query.offset(offset);
+    if (limit) query = query.limit(limit);
+    allPedidos = await query;
   }
   if (allPedidos.length === 0) return NextResponse.json([]);
   const ids = allPedidos.map((p) => p.id);

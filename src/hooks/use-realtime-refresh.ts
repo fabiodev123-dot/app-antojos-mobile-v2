@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 
+const DEBOUNCE_MS = 800;
+
 /**
  * Suscribe a cambios realtime en una o más tablas de Supabase.
- * Cuando hay un INSERT/UPDATE/DELETE, llama `router.refresh()` para que los
- * Server Components re-fetchen la data y la UI se actualice sin F5.
+ * Cuando hay un INSERT/UPDATE/DELETE, llama `router.refresh()` pero
+ * con debounce: si llegan 5 eventos en 100ms, solo se refresca UNA vez.
  *
  * Requiere que la tabla tenga REPLICA IDENTITY FULL o un PK (Supabase Realtime
  * usa WAL para detectar cambios; las tablas del repo lo tienen).
@@ -19,6 +21,15 @@ import { createBrowserClient } from "@supabase/ssr";
 export function useRealtimeRefresh(tables: string[]) {
   const router = useRouter();
   const tablesKey = tables.join(",");
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const debouncedRefresh = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      router.refresh();
+      timerRef.current = null;
+    }, DEBOUNCE_MS);
+  }, [router]);
 
   useEffect(() => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -36,14 +47,15 @@ export function useRealtimeRefresh(tables: string[]) {
         "postgres_changes",
         { event: "*", schema: "public", table },
         () => {
-          router.refresh();
+          debouncedRefresh();
         },
       );
     }
     channel.subscribe();
 
     return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
       supabase.removeChannel(channel);
     };
-  }, [router, tablesKey]);
+  }, [debouncedRefresh, tablesKey]);
 }

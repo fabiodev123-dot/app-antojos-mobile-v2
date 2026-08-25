@@ -186,22 +186,41 @@ export async function GET(
     }
 
     if (requiresTenant && session.tenantId && !session.isSuperAdmin) {
-      const rows = await db.select().from(t).where(eq(t.tenantId, session.tenantId));
+      const limit = Number(req.nextUrl.searchParams.get("limit")) || undefined;
+      const offset = Number(req.nextUrl.searchParams.get("offset")) || undefined;
+      let query = db.select().from(t).where(eq(t.tenantId, session.tenantId)).$dynamic();
+      if (offset) query = query.offset(offset);
+      if (limit) query = query.limit(limit);
+      const rows = await query;
       return NextResponse.json(rows);
     }
     if (requiresTenant && session.isSuperAdmin) {
       const filterTenant = req.nextUrl.searchParams.get("tenant_id");
+      const limit = Number(req.nextUrl.searchParams.get("limit")) || undefined;
+      const offset = Number(req.nextUrl.searchParams.get("offset")) || undefined;
       if (filterTenant) {
-        const rows = await db.select().from(t).where(eq(t.tenantId, filterTenant));
+        let query = db.select().from(t).where(eq(t.tenantId, filterTenant)).$dynamic();
+        if (offset) query = query.offset(offset);
+        if (limit) query = query.limit(limit);
+        const rows = await query;
         return NextResponse.json(rows);
       }
       // Super admin sin filtro: ve todos los tenants.
-      const rows = await db.select().from(t);
+      let query = db.select().from(t).$dynamic();
+      if (offset) query = query.offset(offset);
+      if (limit) query = query.limit(limit);
+      const rows = await query;
       return NextResponse.json(rows);
     }
 
+    // Entity without tenant
+    const limit = Number(req.nextUrl.searchParams.get("limit")) || undefined;
+    const offset = Number(req.nextUrl.searchParams.get("offset")) || undefined;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rows = await db.select().from(t as any);
+    let query = db.select().from(t as any).$dynamic();
+    if (offset) query = query.offset(offset);
+    if (limit) query = query.limit(limit);
+    const rows = await query;
     return NextResponse.json(rows);
   } catch (err) {
     console.error("[api/db/[entity]] GET error:", err);
