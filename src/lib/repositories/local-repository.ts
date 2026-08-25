@@ -9,12 +9,22 @@ export function createLocalRepository<T extends BaseEntity>(
 ): Repository<T> {
   const arraySchema = z.array(z.any()) as unknown as z.ZodType<T[]>;
 
+  /** In-memory cache of the parsed array (invalidated on writes). */
+  let cachedData: T[] | null = null;
+
   function readAll(): T[] {
-    return readJsonSafe<T[]>(storageKey, arraySchema, []);
+    if (cachedData) return cachedData;
+    cachedData = readJsonSafe<T[]>(storageKey, arraySchema, []);
+    return cachedData;
   }
 
   function writeAll(items: T[]): void {
+    cachedData = items;
     writeJson(storageKey, items);
+  }
+
+  function invalidate(): void {
+    cachedData = null;
   }
 
   return {
@@ -67,6 +77,7 @@ export function createLocalRepository<T extends BaseEntity>(
     },
 
     replaceAll(items) {
+      invalidate();
       writeAll(items);
     },
   };

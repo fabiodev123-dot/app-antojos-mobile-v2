@@ -24,6 +24,12 @@ const repoCache = new WeakMap<
   { version: number; data: BaseEntity[] }
 >();
 
+/** O(1) index: same version → same Map reference. */
+const repoIndexCache = new WeakMap<
+  Repository<BaseEntity>,
+  { version: number; index: Map<string, BaseEntity> }
+>();
+
 /** Snapshot estable para SSR / hidratación. */
 const EMPTY_LIST: readonly never[] = Object.freeze([]) as readonly never[];
 const EMPTY_ITEM: null = null;
@@ -35,6 +41,28 @@ function isReactive<T extends BaseEntity>(
     typeof (repository as ReactiveRepository<T>).subscribe === "function" &&
     typeof (repository as ReactiveRepository<T>).getVersion === "function"
   );
+}
+
+function getIndex<T extends BaseEntity>(
+  repository: Repository<T>,
+  version: number,
+): Map<string, T> {
+  const cached = repoIndexCache.get(repository as Repository<BaseEntity>);
+  if (cached && cached.version === version) {
+    return cached.index as Map<string, T>;
+  }
+  // Build from repoCache data if available, else from list()
+  const listCached = repoCache.get(repository as Repository<BaseEntity>);
+  const data =
+    listCached && listCached.version === version
+      ? listCached.data
+      : repository.list();
+  const index = new Map<string, T>();
+  for (const item of data) {
+    index.set(item.id, item as T);
+  }
+  repoIndexCache.set(repository as Repository<BaseEntity>, { version, index });
+  return index;
 }
 
 export function useRepositoryList<T extends BaseEntity>(repository: Repository<T>): T[] {
@@ -118,13 +146,8 @@ export function useRepositoryGet<T extends BaseEntity>(
   const getSnapshot = useMemo(() => {
     return () => {
       if (!id) return null;
-      const cached = repoCache.get(repository as Repository<BaseEntity>);
-      if (cached && cached.version === version) {
-        return (cached.data as T[]).find((item) => item.id === id) ?? null;
-      }
-      const data = repository.list();
-      repoCache.set(repository as Repository<BaseEntity>, { version, data });
-      return data.find((item) => item.id === id) ?? null;
+      const index = getIndex(repository, version);
+      return index.get(id) ?? null;
     };
   }, [repository, id, version]);
 

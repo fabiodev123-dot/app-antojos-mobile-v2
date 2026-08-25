@@ -32,6 +32,39 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SESSION CACHE — in-memory per-process, keyed by userId+actingTenant.
+// TTL 45s: 1 getUser + 1 super_admins query per user per TTL window,
+// not per request. No invalidation complexity needed at this TTL.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const SESSION_TTL_MS = 45_000;
+
+type CachedSession = {
+  session: Session;
+  expiresAt: number;
+};
+
+const sessionCache = new Map<string, CachedSession>();
+
+function cacheKey(userId: string, actingTenant: string): string {
+  return `${userId}:${actingTenant}`;
+}
+
+function getCached(key: string): Session | null {
+  const entry = sessionCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    sessionCache.delete(key);
+    return null;
+  }
+  return entry.session;
+}
+
+function setCache(key: string, session: Session): void {
+  sessionCache.set(key, { session, expiresAt: Date.now() + SESSION_TTL_MS });
+}
+
 export type Session = {
   user: { id: string; email: string };
   /**
@@ -54,6 +87,12 @@ export type TenantSessionResult =
   | { ok: false; response: NextResponse };
 
 export async function getSession(): Promise<Session | null> {
+  // 1. Read cookie FIRST to build cache key without any DB calls.
+  const cookieStore = await cookies();
+  const acting = cookieStore.get("acting_tenant_id")?.value ?? "";
+
+  // 2. We need the user ID for the cache key. Do a lightweight getUser
+  //    (this hits Supabase Auth but is fast — JWT verification, no DB round-trip).
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
@@ -61,30 +100,31 @@ export async function getSession(): Promise<Session | null> {
 
   if (!user || !user.email) return null;
 
-  // 1. Intentar tenant_id desde el JWT (custom_access_token_hook si existe).
+  // 3. Check cache (keyed by userId + acting tenant).
+  const key = cacheKey(user.id, acting);
+  const cached = getCached(key);
+  if (cached) return cached;
+
+  // 4. Cache miss — do the expensive queries.
   const tenantIdFromJwt =
     (user.app_metadata as { tenant_id?: string } | undefined)?.tenant_id ?? null;
 
-  // 2. Chequear si es super admin (RLS permite self-check en super_admins).
   const { data: superAdmin } = await supabase
     .from("super_admins" as never)
     .select("id")
     .eq("user_id", user.id)
     .maybeSingle() as { data: { id: string } | null };
 
-  const cookieStore = await cookies();
-  const acting = cookieStore.get("acting_tenant_id")?.value;
-
-  // Super admin con acting_tenant_id cookie → usa ese tenant.
   if (superAdmin && acting) {
-    return {
+    const session: Session = {
       user: { id: user.id, email: user.email },
       tenantId: acting,
       isSuperAdmin: true,
     };
+    setCache(key, session);
+    return session;
   }
 
-  // 3. Si tenant_id no viene del JWT, buscarlo en tenant_users (fallback).
   let tenantId = tenantIdFromJwt;
   if (!tenantId && !superAdmin) {
     const { data: tu } = await supabase
@@ -96,11 +136,13 @@ export async function getSession(): Promise<Session | null> {
     tenantId = tu?.tenant_id ?? null;
   }
 
-  return {
+  const session: Session = {
     user: { id: user.id, email: user.email },
     tenantId,
     isSuperAdmin: !!superAdmin,
   };
+  setCache(key, session);
+  return session;
 }
 
 export async function requireSession(): Promise<SessionResult> {

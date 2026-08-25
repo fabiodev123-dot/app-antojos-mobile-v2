@@ -144,27 +144,27 @@ export function PwaInstall() {
 
   return (
     <>
-      <div className="fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 mx-auto max-w-md px-3 pb-2">
-        <div className="flex items-center gap-3 rounded-xl border border-brand/40 bg-card/95 p-3 shadow-2xl backdrop-blur supports-[backdrop-filter]:bg-card/80">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand to-secondary text-primary-foreground shadow-md">
-            <Download className="size-5" />
+      <div className="fixed inset-x-0 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-30 mx-auto max-w-md px-3 pr-16 sm:pr-3 pb-2 animate-in fade-in-0 slide-in-from-bottom-4 duration-200">
+        <div className="flex items-center gap-2.5 rounded-xl border border-brand/40 bg-zinc-950/95 p-3 shadow-2xl backdrop-blur-xl ring-1 ring-white/10">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand to-secondary text-primary-foreground shadow-md">
+            <Download className="size-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium leading-tight">Instalá Antojos</p>
-            <p className="text-[11px] text-muted-foreground leading-tight">
-              Accedé desde tu pantalla de inicio, sin navegador.
+            <p className="text-xs font-semibold leading-tight text-zinc-100">Instalá Antojos</p>
+            <p className="text-[10px] text-zinc-400 leading-tight truncate">
+              Accedé desde tu pantalla de inicio
             </p>
           </div>
-          <Button size="sm" onClick={handleInstallClick} className="shrink-0 rounded-full">
+          <Button size="sm" onClick={handleInstallClick} className="shrink-0 rounded-full h-8 text-xs font-bold px-3 shadow-sm">
             Instalar
           </Button>
           <button
             type="button"
             onClick={handleDismiss}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
-            aria-label="Cerrar"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-zinc-400 hover:bg-white/10 hover:text-white transition-colors"
+            aria-label="Cerrar aviso de instalación"
           >
-            <X className="size-3.5" />
+            <X className="size-4" />
           </button>
         </div>
       </div>

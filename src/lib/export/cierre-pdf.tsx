@@ -2,65 +2,63 @@
 
 import { Document, Page, Text, View, StyleSheet, pdf } from "@react-pdf/renderer";
 import type { CierreData } from "@/lib/export/cierre-text";
-import { buildCierreResumen } from "@/lib/export/cierre-text";
+import { buildCierreResumen, getConsolidadoProductos } from "@/lib/export/cierre-text";
 import { formatFechaLarga, formatHora } from "@/lib/format";
 
 const styles = StyleSheet.create({
-  page: { padding: 36, fontSize: 10, fontFamily: "Helvetica", color: "#111" },
-  header: { borderBottom: "1 solid #888", paddingBottom: 8, marginBottom: 16 },
-  title: { fontSize: 18, fontFamily: "Helvetica-Bold", marginBottom: 4 },
+  page: { padding: 32, fontSize: 9, fontFamily: "Helvetica", color: "#111" },
+  header: { borderBottom: "2 solid #ff6600", paddingBottom: 8, marginBottom: 12 },
+  brand: { fontSize: 8, color: "#ff6600", fontFamily: "Helvetica-Bold", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 2 },
+  title: { fontSize: 16, fontFamily: "Helvetica-Bold", marginBottom: 2 },
   subtitle: { fontSize: 9, color: "#555" },
-  section: { marginBottom: 16 },
+  section: { marginBottom: 14 },
   sectionTitle: {
-    fontSize: 11,
+    fontSize: 10,
     fontFamily: "Helvetica-Bold",
-    marginBottom: 6,
+    marginBottom: 5,
     textTransform: "uppercase",
-    letterSpacing: 1,
-    color: "#444",
+    letterSpacing: 0.8,
+    color: "#333",
+    borderBottom: "1 solid #e5e5e5",
+    paddingBottom: 2,
   },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 3,
-    borderBottom: "1 dotted #ddd",
-  },
-  rowLast: { borderBottom: "none" },
   bold: { fontFamily: "Helvetica-Bold" },
   muted: { color: "#666" },
   totalsBox: {
-    marginTop: 8,
+    marginBottom: 14,
     padding: 10,
-    backgroundColor: "#f4f4f4",
+    backgroundColor: "#fafafa",
     borderRadius: 4,
+    border: "1 solid #e5e5e5",
   },
   totalsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: 3,
+    paddingVertical: 2.5,
   },
   totalsRowFinal: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingVertical: 6,
+    paddingVertical: 5,
     marginTop: 4,
-    borderTop: "1 solid #444",
+    borderTop: "1.5 solid #333",
   },
-  balance: { fontSize: 14, fontFamily: "Helvetica-Bold" },
-  small: { fontSize: 8, color: "#666", marginTop: 12, textAlign: "center" },
+  balance: { fontSize: 12, fontFamily: "Helvetica-Bold" },
+  small: { fontSize: 7.5, color: "#777", marginTop: 10, textAlign: "center" },
   tableHeader: {
     flexDirection: "row",
-    backgroundColor: "#f4f4f4",
+    backgroundColor: "#f2f2f2",
     paddingVertical: 4,
     paddingHorizontal: 6,
     fontFamily: "Helvetica-Bold",
-    fontSize: 9,
+    fontSize: 8.5,
+    borderBottom: "1 solid #ccc",
   },
   tableRow: {
     flexDirection: "row",
-    paddingVertical: 3,
+    paddingVertical: 3.5,
     paddingHorizontal: 6,
-    borderBottom: "1 dotted #ddd",
+    borderBottom: "1 dotted #e0e0e0",
   },
 });
 
@@ -77,30 +75,60 @@ function CierreDocument({ data }: { data: CierreData }) {
   const pedidosCerrados = data.pedidos.filter(
     (p) => p.estado === "entregado" || p.estado === "listo",
   );
+  const ventasRapidas = (data.ventasRapidas ?? []).filter((v) =>
+    data.periodo && data.periodo !== "diario" ? true : v.fecha === data.fecha,
+  );
+  const consolidados = getConsolidadoProductos(data.pedidos);
+
+  const tituloPeriodo =
+    data.periodo === "semanal"
+      ? "Cierre Semanal"
+      : data.periodo === "mensual"
+        ? "Cierre Mensual"
+        : "Cierre del Día";
+
+  const labelPeriodo = data.periodoLabel ?? formatFechaLarga(data.fecha);
 
   return (
     <Document title={`Cierre Antojos ${data.fecha}`}>
       <Page size="A4" style={styles.page}>
+        {/* Encabezado */}
         <View style={styles.header}>
-          <Text style={styles.title}>Rotisería Antojos — Cierre del día</Text>
-          <Text style={styles.subtitle}>{formatFechaLarga(data.fecha)}</Text>
+          <Text style={styles.brand}>Rotisería Antojos</Text>
+          <Text style={styles.title}>{tituloPeriodo}</Text>
+          <Text style={styles.subtitle}>{labelPeriodo}</Text>
         </View>
 
+        {/* Resumen Financiero */}
         <View style={styles.totalsBox}>
           <View style={styles.totalsRow}>
             <Text>Pedidos cerrados</Text>
-            <Text style={styles.bold}>{resumen.cantidadPedidos}</Text>
+            <Text style={styles.bold}>{pedidosCerrados.length}</Text>
+          </View>
+          {ventasRapidas.length > 0 ? (
+            <View style={styles.totalsRow}>
+              <Text>Ventas rápidas (mostrador)</Text>
+              <Text style={styles.bold}>{ventasRapidas.length}</Text>
+            </View>
+          ) : null}
+          <View style={styles.totalsRow}>
+            <Text>Total platos / unidades vendidas</Text>
+            <Text style={styles.bold}>{resumen.totalUnidades} un.</Text>
           </View>
           <View style={styles.totalsRow}>
-            <Text>Ventas totales</Text>
-            <Text style={styles.bold}>{formatCurrency(resumen.totalVentas)}</Text>
+            <Text>Ventas totales facturadas</Text>
+            <Text style={[styles.bold, { color: "#166534" }]}>
+              {formatCurrency(resumen.totalVentas)}
+            </Text>
           </View>
           <View style={styles.totalsRow}>
             <Text>Gastos totales</Text>
-            <Text style={styles.bold}>{formatCurrency(resumen.totalGastos)}</Text>
+            <Text style={[styles.bold, { color: "#991b1b" }]}>
+              {formatCurrency(resumen.totalGastos)}
+            </Text>
           </View>
           <View style={styles.totalsRowFinal}>
-            <Text style={styles.balance}>Balance</Text>
+            <Text style={styles.balance}>Balance Ganancia / Pérdida</Text>
             <Text
               style={[
                 styles.balance,
@@ -112,50 +140,113 @@ function CierreDocument({ data }: { data: CierreData }) {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Pedidos ({pedidosCerrados.length})</Text>
-          {pedidosCerrados.length === 0 ? (
-            <Text style={styles.muted}>No hay pedidos cerrados en esta fecha.</Text>
-          ) : (
+        {/* Resumen de Unidades Vendidas por Producto */}
+        {consolidados.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Platos y Unidades Vendidas ({consolidados.length} variedades)
+            </Text>
             <View>
               <View style={styles.tableHeader}>
-                <Text style={{ width: 35 }}>#</Text>
-                <Text style={{ flex: 1 }}>Cliente</Text>
-                <Text style={{ width: 50 }}>Hora</Text>
-                <Text style={{ width: 45 }}>Items</Text>
-                <Text style={{ width: 70, textAlign: "right" }}>Total</Text>
+                <Text style={{ flex: 1 }}>Plato / Producto</Text>
+                <Text style={{ width: 70, textAlign: "center" }}>Cantidad</Text>
+                <Text style={{ width: 85, textAlign: "right" }}>Recaudación</Text>
               </View>
-              {pedidosCerrados.map((p) => (
-                <View key={p.id} style={styles.tableRow}>
-                  <Text style={{ width: 35 }}>#{p.numero}</Text>
-                  <Text style={{ flex: 1 }}>{p.nombreCliente}</Text>
-                  <Text style={{ width: 50 }}>{formatHora(p.hora)}</Text>
-                  <Text style={{ width: 45 }}>{p.items.length}</Text>
-                  <Text style={{ width: 70, textAlign: "right" }}>
-                    {formatCurrency(p.total)}
+              {consolidados.map((item, idx) => (
+                <View key={`prod-${idx}`} style={styles.tableRow}>
+                  <Text style={{ flex: 1 }}>{item.nombreProducto}</Text>
+                  <Text style={{ width: 70, textAlign: "center", fontFamily: "Helvetica-Bold" }}>
+                    {item.cantidad} un.
+                  </Text>
+                  <Text style={{ width: 85, textAlign: "right" }}>
+                    {formatCurrency(item.subtotal)}
                   </Text>
                 </View>
               ))}
             </View>
+          </View>
+        ) : null}
+
+        {/* Detalle de Pedidos */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>
+            Detalle de Pedidos ({pedidosCerrados.length})
+          </Text>
+          {pedidosCerrados.length === 0 ? (
+            <Text style={styles.muted}>No hay pedidos cerrados en este período.</Text>
+          ) : (
+            <View>
+              <View style={styles.tableHeader}>
+                <Text style={{ width: 32 }}>#</Text>
+                <Text style={{ width: 90 }}>Cliente</Text>
+                <Text style={{ width: 45 }}>Hora</Text>
+                <Text style={{ flex: 1 }}>Ítems / Unidades</Text>
+                <Text style={{ width: 70, textAlign: "right" }}>Total</Text>
+              </View>
+              {pedidosCerrados.map((p) => {
+                const itemsStr = p.items
+                  .map((it) => `${it.cantidad}× ${it.nombreProducto}`)
+                  .join(", ");
+                return (
+                  <View key={p.id} style={styles.tableRow}>
+                    <Text style={{ width: 32 }}>#{p.numero}</Text>
+                    <Text style={{ width: 90 }}>{p.nombreCliente}</Text>
+                    <Text style={{ width: 45 }}>{formatHora(p.hora)}</Text>
+                    <Text style={{ flex: 1, color: "#444" }}>{itemsStr}</Text>
+                    <Text style={{ width: 70, textAlign: "right", fontFamily: "Helvetica-Bold" }}>
+                      {formatCurrency(p.total)}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
           )}
         </View>
 
+        {/* Ventas Rápidas (Mostrador) */}
+        {ventasRapidas.length > 0 ? (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Ventas Rápidas en Mostrador ({ventasRapidas.length})
+            </Text>
+            <View>
+              <View style={styles.tableHeader}>
+                <Text style={{ width: 50 }}>Hora</Text>
+                <Text style={{ flex: 1 }}>Nota / Concepto</Text>
+                <Text style={{ width: 80, textAlign: "right" }}>Monto</Text>
+              </View>
+              {ventasRapidas.map((v) => (
+                <View key={v.id} style={styles.tableRow}>
+                  <Text style={{ width: 50 }}>{v.hora || "—"}</Text>
+                  <Text style={{ flex: 1, color: "#555" }}>
+                    {v.nota || "Venta rápida mostrador"}
+                  </Text>
+                  <Text style={{ width: 80, textAlign: "right", fontFamily: "Helvetica-Bold" }}>
+                    {formatCurrency(v.monto)}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        ) : null}
+
+        {/* Detalle de Gastos */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Gastos ({data.gastos.length})</Text>
           {data.gastos.length === 0 ? (
-            <Text style={styles.muted}>No hay gastos registrados en esta fecha.</Text>
+            <Text style={styles.muted}>No hay gastos registrados en este período.</Text>
           ) : (
             <View>
               <View style={styles.tableHeader}>
                 <Text style={{ flex: 1 }}>Descripción</Text>
-                <Text style={{ width: 80 }}>Categoría</Text>
-                <Text style={{ width: 70, textAlign: "right" }}>Monto</Text>
+                <Text style={{ width: 90 }}>Categoría</Text>
+                <Text style={{ width: 75, textAlign: "right" }}>Monto</Text>
               </View>
               {data.gastos.map((g) => (
                 <View key={g.id} style={styles.tableRow}>
                   <Text style={{ flex: 1 }}>{g.descripcion}</Text>
-                  <Text style={{ width: 80 }}>{g.categoria.replace(/_/g, " ")}</Text>
-                  <Text style={{ width: 70, textAlign: "right" }}>
+                  <Text style={{ width: 90 }}>{g.categoria.replace(/_/g, " ")}</Text>
+                  <Text style={{ width: 75, textAlign: "right", color: "#991b1b" }}>
                     {formatCurrency(g.monto)}
                   </Text>
                 </View>
@@ -165,7 +256,7 @@ function CierreDocument({ data }: { data: CierreData }) {
         </View>
 
         <Text style={styles.small}>
-          Generado por Antojos · {new Date().toLocaleString("es-AR")}
+          Generado por Rotisería Antojos · {new Date().toLocaleString("es-AR")}
         </Text>
       </Page>
     </Document>

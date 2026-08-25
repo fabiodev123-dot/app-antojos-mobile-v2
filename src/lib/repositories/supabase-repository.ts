@@ -219,16 +219,14 @@ export function createSupabaseRepository<
       state.order.push(entityRow.id);
       sortOrder();
       bumpVersion(REPO_KEY);
-      void (async () => {
-        try {
-          await apiPost(entity, data);
-        } catch (err) {
-          state.byId.delete(entityRow.id);
-          state.order = state.order.filter((x) => x !== entityRow.id);
-          bumpVersion(REPO_KEY);
-          throw err;
-        }
-      })();
+      // Fire-and-forget with rollback on error. Callers that need
+      // to await the result can use the returned promise via .catch().
+      apiPost(entity, data).catch((err) => {
+        state.byId.delete(entityRow.id);
+        state.order = state.order.filter((x) => x !== entityRow.id);
+        bumpVersion(REPO_KEY);
+        console.error(`[supabase-repository] create ${entity} failed:`, err);
+      });
       return entityRow;
     },
 
@@ -249,16 +247,12 @@ export function createSupabaseRepository<
       state.byId.set(id, updated);
       sortOrder();
       bumpVersion(REPO_KEY);
-      void (async () => {
-        try {
-          await apiPatch(entity, id, data);
-        } catch (err) {
-          state.byId.set(id, current);
-          sortOrder();
-          bumpVersion(REPO_KEY);
-          throw err;
-        }
-      })();
+      apiPatch(entity, id, data).catch((err) => {
+        state.byId.set(id, current);
+        sortOrder();
+        bumpVersion(REPO_KEY);
+        console.error(`[supabase-repository] update ${entity} ${id} failed:`, err);
+      });
       return updated;
     },
 
@@ -268,17 +262,13 @@ export function createSupabaseRepository<
       state.byId.delete(id);
       state.order = state.order.filter((x) => x !== id);
       bumpVersion(REPO_KEY);
-      void (async () => {
-        try {
-          await apiDelete(entity, id);
-        } catch (err) {
-          state.byId.set(id, existing);
-          state.order.push(id);
-          sortOrder();
-          bumpVersion(REPO_KEY);
-          throw err;
-        }
-      })();
+      apiDelete(entity, id).catch((err) => {
+        state.byId.set(id, existing);
+        state.order.push(id);
+        sortOrder();
+        bumpVersion(REPO_KEY);
+        console.error(`[supabase-repository] delete ${entity} ${id} failed:`, err);
+      });
       return true;
     },
 

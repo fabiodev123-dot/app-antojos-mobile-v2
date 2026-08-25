@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import {
   ClipboardList,
@@ -13,6 +13,8 @@ import {
   ChefHat,
   ArrowRight,
   Sparkles,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import {
   clientesRepository,
@@ -66,6 +68,7 @@ export default function HomeContent() {
 
   const greet = useClientGreeting();
   const dateLabel = useClientDateLabel();
+  const [reponerOpen, setReponerOpen] = useState(true);
 
   const today = hoy();
   const pedidosHoy = pedidos.filter((p) => p.fecha === today);
@@ -232,45 +235,62 @@ export default function HomeContent() {
 
         {stockBajo.length > 0 ? (
           <Card className="overflow-hidden p-0 border-warning/30 card-elevated">
-            <CardHeader className="border-b border-warning/20 bg-gradient-to-r from-warning/10 to-transparent p-3.5">
-              <CardTitle className="flex items-center gap-3 text-sm font-medium text-warning">
+            <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 border-b border-warning/20 bg-gradient-to-r from-warning/10 to-transparent p-3.5">
+              <button
+                type="button"
+                onClick={() => setReponerOpen(!reponerOpen)}
+                className="flex items-center gap-2.5 text-sm font-medium text-warning text-left hover:text-warning/80 transition-colors select-none group"
+              >
                 <AlertTriangle className="size-4" />
-                Platos por reponer ({stockBajo.length})
-              </CardTitle>
+                <span>Platos por reponer</span>
+                <span className="rounded-full bg-warning/20 px-2 py-0.5 text-xs font-semibold text-warning">
+                  {stockBajo.length}
+                </span>
+                {reponerOpen ? (
+                  <ChevronUp className="size-4 text-warning/70 group-hover:text-warning transition-transform ml-1" />
+                ) : (
+                  <ChevronDown className="size-4 text-warning/70 group-hover:text-warning transition-transform ml-1" />
+                )}
+              </button>
+              <ButtonLink href="/productos" size="sm" variant="outline" className="border-warning/30 text-warning hover:bg-warning/10 text-xs h-7">
+                Ver carta
+              </ButtonLink>
             </CardHeader>
-            <CardContent className="space-y-1.5 p-3 pt-3">
-              {productos.map((p) => (
-                <Link
-                  key={p.id}
-                  href="/productos"
-                  className="flex items-center gap-3 text-sm rounded-lg px-2 py-1.5 hover:bg-muted/40 transition-colors"
-                >
-                  {p.imagen ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={p.imagen}
-                      alt=""
-                      aria-hidden
-                      loading="lazy"
-                      className="size-8 shrink-0 rounded-md object-cover ring-1 ring-border"
-                    />
-                  ) : p.emoji ? (
-                    <span className="size-8 shrink-0 grid place-items-center rounded-md bg-muted text-base">
-                      {p.emoji}
+            {reponerOpen ? (
+              <CardContent className="space-y-1.5 p-3 pt-3">
+                {stockBajo.map((p) => (
+                  <Link
+                    key={p.id}
+                    href="/productos"
+                    className="flex items-center gap-3 text-sm rounded-lg px-2 py-1.5 hover:bg-muted/40 transition-colors"
+                  >
+                    {p.imagen ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={p.imagen}
+                        alt=""
+                        aria-hidden
+                        loading="lazy"
+                        className="size-8 shrink-0 rounded-md object-cover ring-1 ring-border"
+                      />
+                    ) : p.emoji ? (
+                      <span className="size-8 shrink-0 grid place-items-center rounded-md bg-muted text-base">
+                        {p.emoji}
+                      </span>
+                    ) : (
+                      <span className="size-8 shrink-0 rounded-md bg-muted" aria-hidden />
+                    )}
+                    <span className="flex-1 truncate">{p.nombre}</span>
+                    <span className="font-mono tabular-nums text-warning font-medium shrink-0">
+                      {p.stockActual}
+                      <span className="text-muted-foreground font-normal ml-1">
+                        (mín {p.stockMinimo})
+                      </span>
                     </span>
-                  ) : (
-                    <span className="size-8 shrink-0 rounded-md bg-muted" aria-hidden />
-                  )}
-                  <span className="flex-1 truncate">{p.nombre}</span>
-                  <span className="font-mono tabular-nums text-warning font-medium shrink-0">
-                    {p.stockActual}
-                    <span className="text-muted-foreground font-normal ml-1">
-                      (mín {p.stockMinimo})
-                    </span>
-                  </span>
-                </Link>
-              ))}
-            </CardContent>
+                  </Link>
+                ))}
+              </CardContent>
+            ) : null}
           </Card>
         ) : null}
 

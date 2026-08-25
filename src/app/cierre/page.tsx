@@ -1,7 +1,26 @@
 "use client";
 
-import { useState } from "react";
-import { Mail, MessageCircle, TrendingUp, TrendingDown, Scale, MoonStar, Save, Plus, Trash2, Loader2, FileText, FileSpreadsheet, Boxes, ShoppingCart, AlertTriangle } from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  Mail,
+  MessageCircle,
+  TrendingUp,
+  TrendingDown,
+  Scale,
+  MoonStar,
+  Save,
+  Plus,
+  Trash2,
+  Loader2,
+  FileText,
+  FileSpreadsheet,
+  Boxes,
+  ShoppingCart,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Calendar,
+} from "lucide-react";
 import {
   cierresRepository,
   gastosRepository,
@@ -18,6 +37,7 @@ import { ButtonLink } from "@/components/ui/button-link";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -34,10 +54,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { formatFechaLarga, formatPrecio, hoy } from "@/lib/format";
-import { buildCierreResumen, buildMailtoHref, buildWhatsappHref, filenameForCierre, type CierreData } from "@/lib/export/cierre-text";
+import {
+  buildCierreResumen,
+  buildMailtoHref,
+  buildWhatsappHref,
+  filenameForCierre,
+  getConsolidadoProductos,
+  type CierreData,
+  type PeriodoTipo,
+} from "@/lib/export/cierre-text";
 import { generateCierrePdf } from "@/lib/export/cierre-pdf";
 import { generateCierreExcel } from "@/lib/export/cierre-excel";
 import { downloadBlob } from "@/lib/export/download";
+import { getStartOfWeek, getWeekDays, formatWeekLabel } from "@/lib/utils/week";
 import {
   gastoCreateSchema,
   gastoFormSchema,
@@ -48,6 +77,11 @@ import { toast } from "sonner";
 import type { CategoriaGasto } from "@/lib/types";
 import { VentasRapidasManager } from "@/components/features/ventas-rapidas-manager";
 
+const MESES = [
+  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
+];
+
 export default function CierrePage() {
   const cierres = useRepositoryList(cierresRepository);
   const gastos = useRepositoryList(gastosRepository);
@@ -56,24 +90,89 @@ export default function CierrePage() {
   const productos = useRepositoryList(productosRepository);
   const ventasRapidas = useRepositoryList(ventasRapidasRepository);
 
+  const [periodo, setPeriodo] = useState<PeriodoTipo>("diario");
+  const [reponerOpen, setReponerOpen] = useState(true);
   const [showGastoDialog, setShowGastoDialog] = useState(false);
   const [generating, setGenerating] = useState<"pdf" | "xlsx" | null>(null);
 
   const today = hoy();
-  const pedidosHoy = pedidos.filter((p) => p.fecha === today);
-  const gastosHoy = gastos.filter((g) => g.fecha === today);
-  const ventasRapidasHoy = ventasRapidas.filter((v) => v.fecha === today);
 
-  const data: CierreData = {
-    fecha: today,
-    pedidos: pedidosHoy,
-    gastos: gastosHoy,
-    ventasRapidas: ventasRapidasHoy,
-  };
-  const resumen = buildCierreResumen(data);
+  // 1. Datos para período DIARIO
+  const pedidosDiario = useMemo(() => pedidos.filter((p) => p.fecha === today), [pedidos, today]);
+  const gastosDiario = useMemo(() => gastos.filter((g) => g.fecha === today), [gastos, today]);
+  const ventasRapidasDiario = useMemo(() => ventasRapidas.filter((v) => v.fecha === today), [ventasRapidas, today]);
+
+  // 2. Datos para período SEMANAL
+  const startOfWeek = useMemo(() => getStartOfWeek(today), [today]);
+  const weekDaysSet = useMemo(() => new Set(getWeekDays(startOfWeek)), [startOfWeek]);
+  const pedidosSemanal = useMemo(() => pedidos.filter((p) => weekDaysSet.has(p.fecha)), [pedidos, weekDaysSet]);
+  const gastosSemanal = useMemo(() => gastos.filter((g) => weekDaysSet.has(g.fecha)), [gastos, weekDaysSet]);
+  const ventasRapidasSemanal = useMemo(() => ventasRapidas.filter((v) => weekDaysSet.has(v.fecha)), [ventasRapidas, weekDaysSet]);
+  const weekLabel = useMemo(() => `Semana ${formatWeekLabel(startOfWeek)}`, [startOfWeek]);
+
+  // 3. Datos para período MENSUAL
+  const currentMonthPrefix = useMemo(() => today.slice(0, 7), [today]);
+  const pedidosMensual = useMemo(() => pedidos.filter((p) => p.fecha.startsWith(currentMonthPrefix)), [pedidos, currentMonthPrefix]);
+  const gastosMensual = useMemo(() => gastos.filter((g) => g.fecha.startsWith(currentMonthPrefix)), [gastos, currentMonthPrefix]);
+  const ventasRapidasMensual = useMemo(() => ventasRapidas.filter((v) => v.fecha.startsWith(currentMonthPrefix)), [ventasRapidas, currentMonthPrefix]);
+  const monthLabel = useMemo(() => {
+    const mIdx = Number(today.slice(5, 7)) - 1;
+    return `Mes de ${MESES[mIdx]} ${today.slice(0, 4)}`;
+  }, [today]);
+
+  // Datos consolidados activos según el período seleccionado
+  const activeData = useMemo<CierreData>(() => {
+    if (periodo === "semanal") {
+      return {
+        fecha: `semana-${startOfWeek}`,
+        periodo: "semanal",
+        periodoLabel: weekLabel,
+        pedidos: pedidosSemanal,
+        gastos: gastosSemanal,
+        ventasRapidas: ventasRapidasSemanal,
+      };
+    }
+    if (periodo === "mensual") {
+      return {
+        fecha: `mes-${currentMonthPrefix}`,
+        periodo: "mensual",
+        periodoLabel: monthLabel,
+        pedidos: pedidosMensual,
+        gastos: gastosMensual,
+        ventasRapidas: ventasRapidasMensual,
+      };
+    }
+    return {
+      fecha: today,
+      periodo: "diario",
+      periodoLabel: formatFechaLarga(today),
+      pedidos: pedidosDiario,
+      gastos: gastosDiario,
+      ventasRapidas: ventasRapidasDiario,
+    };
+  }, [
+    periodo,
+    today,
+    startOfWeek,
+    weekLabel,
+    monthLabel,
+    currentMonthPrefix,
+    pedidosDiario,
+    gastosDiario,
+    ventasRapidasDiario,
+    pedidosSemanal,
+    gastosSemanal,
+    ventasRapidasSemanal,
+    pedidosMensual,
+    gastosMensual,
+    ventasRapidasMensual,
+  ]);
+
+  const resumen = useMemo(() => buildCierreResumen(activeData), [activeData]);
+  const consolidados = useMemo(() => getConsolidadoProductos(activeData.pedidos), [activeData.pedidos]);
 
   const ultimoCierre = [...cierres].sort((a, b) => (a.fecha > b.fecha ? -1 : 1))[0];
-  const cierreGuardado = ultimoCierre && ultimoCierre.fecha === today;
+  const cierreGuardado = cierres.find((c) => c.fecha === activeData.fecha);
 
   const platosBajos = productos.filter(
     (p) => p.activo && p.stockActual <= p.stockMinimo,
@@ -114,9 +213,9 @@ export default function CierrePage() {
   async function handlePdf() {
     setGenerating("pdf");
     try {
-      const blob = await generateCierrePdf(data);
-      await downloadBlob(blob, filenameForCierre(today, "pdf"));
-      toast.success("PDF descargado");
+      const blob = await generateCierrePdf(activeData);
+      await downloadBlob(blob, filenameForCierre(activeData.fecha, "pdf", periodo));
+      toast.success(`PDF (${periodo}) descargado`);
     } catch {
       toast.error("Error al generar PDF");
     } finally {
@@ -127,9 +226,9 @@ export default function CierrePage() {
   async function handleExcel() {
     setGenerating("xlsx");
     try {
-      const blob = await generateCierreExcel(data);
-      await downloadBlob(blob, filenameForCierre(today, "xlsx"));
-      toast.success("Excel descargado");
+      const blob = await generateCierreExcel(activeData);
+      await downloadBlob(blob, filenameForCierre(activeData.fecha, "xlsx", periodo));
+      toast.success(`Excel (${periodo}) descargado`);
     } catch {
       toast.error("Error al generar Excel");
     } finally {
@@ -138,19 +237,18 @@ export default function CierrePage() {
   }
 
   function handleEmail() {
-    const href = buildMailtoHref(data);
+    const href = buildMailtoHref(activeData);
     window.open(href, "_self");
   }
 
   function handleWhatsapp() {
-    const href = buildWhatsappHref(data);
+    const href = buildWhatsappHref(activeData);
     window.open(href, "_blank", "noopener,noreferrer");
   }
 
   function handleGuardarCierre() {
-    const existe = cierres.find((c) => c.fecha === today);
-    const data2 = {
-      fecha: today,
+    const dataToSave = {
+      fecha: activeData.fecha,
       totalVentas: resumen.totalVentas,
       cantidadPedidos: resumen.cantidadPedidos,
       totalGastos: resumen.totalGastos,
@@ -159,12 +257,12 @@ export default function CierrePage() {
       enviadoEmail: false,
       enviadoWsp: false,
     };
-    if (existe) {
-      cierresRepository.update(existe.id, data2);
-      toast.success("Cierre actualizado");
+    if (cierreGuardado) {
+      cierresRepository.update(cierreGuardado.id, dataToSave);
+      toast.success(`Cierre ${periodo} actualizado`);
     } else {
-      cierresRepository.create(data2 as Omit<typeof data2, "notas"> & { notas?: string });
-      toast.success("Cierre guardado");
+      cierresRepository.create(dataToSave as Omit<typeof dataToSave, "notas"> & { notas?: string });
+      toast.success(`Cierre ${periodo} guardado`);
     }
   }
 
@@ -173,16 +271,53 @@ export default function CierrePage() {
     toast.success("Gasto eliminado");
   }
 
+  const pedidosCerrados = activeData.pedidos.filter(
+    (p) => p.estado === "entregado" || p.estado === "listo",
+  );
+  const pedidosPendientes = activeData.pedidos.filter(
+    (p) => p.estado === "pendiente" || p.estado === "preparando",
+  );
+
   return (
     <>
-      <ShellHeader title="Cierre del día" subtitle={formatFechaLarga(today)} />
+      <ShellHeader
+        title="Cierre de caja"
+        subtitle={activeData.periodoLabel}
+      />
 
-      <main className="mx-auto max-w-6xl px-4 py-5 space-y-4 pb-32">
+      <main className="mx-auto max-w-6xl px-4 py-4 space-y-4 pb-32">
+        {/* Selector de Período (Tabs) */}
+        <div className="flex items-center justify-center">
+          <Tabs
+            value={periodo}
+            onValueChange={(v) => setPeriodo(v as PeriodoTipo)}
+            className="w-full"
+          >
+            <TabsList className="grid w-full grid-cols-3 h-10 p-1 bg-muted/60 rounded-xl border border-border/40">
+              <TabsTrigger value="diario" className="rounded-lg text-xs font-semibold">
+                Diario
+              </TabsTrigger>
+              <TabsTrigger value="semanal" className="rounded-lg text-xs font-semibold">
+                Semanal
+              </TabsTrigger>
+              <TabsTrigger value="mensual" className="rounded-lg text-xs font-semibold">
+                Mensual
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
+        {/* Card de Balance Principal */}
         <Card className="overflow-hidden p-0 card-elevated border-primary/20">
           <CardHeader className="border-b border-border/60 bg-gradient-to-br from-primary/8 via-primary/3 to-transparent p-4">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <Scale className="size-4 text-primary" />
-              Balance de hoy
+            <CardTitle className="flex items-center justify-between gap-2 text-sm font-medium">
+              <span className="flex items-center gap-2">
+                <Scale className="size-4 text-primary" />
+                Balance {periodo === "diario" ? "de hoy" : periodo === "semanal" ? "semanal" : "mensual"}
+              </span>
+              <span className="text-[11px] text-muted-foreground font-normal">
+                {activeData.periodoLabel}
+              </span>
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-3 gap-3 p-4 pt-4">
@@ -210,27 +345,40 @@ export default function CierrePage() {
           </CardContent>
         </Card>
 
+        {/* Botón Guardar Cierre */}
         <Button
-          className="w-full"
+          className="w-full font-bold shadow-md"
           size="lg"
           onClick={handleGuardarCierre}
           variant={cierreGuardado ? "outline" : "default"}
         >
           <Save className="size-4" />
-          {cierreGuardado ? "Actualizar cierre" : "Guardar cierre del día"}
+          {cierreGuardado
+            ? `Actualizar cierre ${periodo === "diario" ? "del día" : periodo === "semanal" ? "semanal" : "mensual"}`
+            : `Guardar cierre ${periodo === "diario" ? "del día" : periodo === "semanal" ? "semanal" : "mensual"}`}
         </Button>
 
+        {/* Sección "Qué reponer" con acordeón contraer/expandir */}
         <Card className="overflow-hidden p-0 card-elevated">
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 border-b border-border/60 bg-gradient-to-r from-muted/40 to-transparent p-3.5">
-            <CardTitle className="flex items-center gap-2 text-sm font-medium">
+            <button
+              type="button"
+              onClick={() => setReponerOpen(!reponerOpen)}
+              className="flex items-center gap-2 text-sm font-medium text-left hover:text-primary transition-colors select-none group"
+            >
               <Boxes className="size-4 text-primary" />
-              Qué reponer
+              <span>Qué reponer</span>
               {platosBajos.length + ingredientesBajos.length > 0 ? (
-                <Badge variant="outline" className="ml-1 border-warning/40 bg-warning/15 text-warning text-[10px]">
+                <Badge variant="outline" className="border-warning/40 bg-warning/15 text-warning text-[10px]">
                   {platosBajos.length + ingredientesBajos.length}
                 </Badge>
               ) : null}
-            </CardTitle>
+              {reponerOpen ? (
+                <ChevronUp className="size-4 text-muted-foreground group-hover:text-foreground transition-transform" />
+              ) : (
+                <ChevronDown className="size-4 text-muted-foreground group-hover:text-foreground transition-transform" />
+              )}
+            </button>
             <div className="flex items-center gap-1.5">
               {platosBajos.length + ingredientesBajos.length > 0 ? (
                 <Button size="sm" variant="outline" onClick={handleCopiarListaCompras}>
@@ -242,86 +390,130 @@ export default function CierrePage() {
               </ButtonLink>
             </div>
           </CardHeader>
-          <CardContent className="divide-y divide-border p-0">
-            {platosBajos.length === 0 && ingredientesBajos.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-muted-foreground text-center">
-                Stock bajo control. Nada que reponer.
-              </div>
-            ) : (
-              <>
-                {platosBajos.length > 0 ? (
-                  <>
-                    <p className="px-3 pt-2.5 pb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-                      Platos a cocinar
-                    </p>
-                    {platosBajos.map((p) => (
-                      <div key={p.id} className="flex items-center justify-between gap-2 p-3">
-                        <div className="min-w-0 flex items-center gap-2">
-                          <AlertTriangle className="size-3.5 text-warning shrink-0" />
-                          <span className="truncate text-sm">
-                            {p.emoji ? <span className="mr-1">{p.emoji}</span> : null}
-                            {p.nombre}
+          {reponerOpen ? (
+            <CardContent className="divide-y divide-border p-0">
+              {platosBajos.length === 0 && ingredientesBajos.length === 0 ? (
+                <div className="px-3 py-4 text-sm text-muted-foreground text-center">
+                  Stock bajo control. Nada que reponer.
+                </div>
+              ) : (
+                <>
+                  {platosBajos.length > 0 ? (
+                    <>
+                      <p className="px-3 pt-2.5 pb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+                        Platos a cocinar
+                      </p>
+                      {platosBajos.map((p) => (
+                        <div key={p.id} className="flex items-center justify-between gap-2 p-3">
+                          <div className="min-w-0 flex items-center gap-2">
+                            <AlertTriangle className="size-3.5 text-warning shrink-0" />
+                            <span className="truncate text-sm">
+                              {p.emoji ? <span className="mr-1">{p.emoji}</span> : null}
+                              {p.nombre}
+                            </span>
+                          </div>
+                          <span className="font-mono text-xs tabular-nums text-muted-foreground shrink-0">
+                            <span className="text-destructive font-medium">{p.stockActual}</span>
+                            <span className="mx-1">/</span>
+                            <span>mín {p.stockMinimo}</span>
                           </span>
                         </div>
-                        <span className="font-mono text-xs tabular-nums text-muted-foreground shrink-0">
-                          <span className="text-destructive font-medium">{p.stockActual}</span>
-                          <span className="mx-1">/</span>
-                          <span>mín {p.stockMinimo}</span>
-                        </span>
-                      </div>
-                    ))}
-                  </>
-                ) : null}
-                {ingredientesBajos.length > 0 ? (
-                  <>
-                    <p className="px-3 pt-2.5 pb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
-                      Materia prima
-                    </p>
-                    {ingredientesBajos.map((i) => (
-                      <div key={i.id} className="flex items-center justify-between gap-2 p-3">
-                        <div className="min-w-0 flex items-center gap-2">
-                          <AlertTriangle className="size-3.5 text-warning shrink-0" />
-                          <span className="truncate text-sm">{i.nombre}</span>
+                      ))}
+                    </>
+                  ) : null}
+                  {ingredientesBajos.length > 0 ? (
+                    <>
+                      <p className="px-3 pt-2.5 pb-1 text-[11px] uppercase tracking-wider text-muted-foreground">
+                        Materia prima
+                      </p>
+                      {ingredientesBajos.map((i) => (
+                        <div key={i.id} className="flex items-center justify-between gap-2 p-3">
+                          <div className="min-w-0 flex items-center gap-2">
+                            <AlertTriangle className="size-3.5 text-warning shrink-0" />
+                            <span className="truncate text-sm">{i.nombre}</span>
+                          </div>
+                          <span className="font-mono text-xs tabular-nums text-muted-foreground shrink-0">
+                            <span className="text-destructive font-medium">{i.stockActual}</span>
+                            <span className="mx-1">/</span>
+                            <span>mín {i.stockMinimo}</span>
+                            <span className="ml-1">{i.unidad}</span>
+                          </span>
                         </div>
-                        <span className="font-mono text-xs tabular-nums text-muted-foreground shrink-0">
-                          <span className="text-destructive font-medium">{i.stockActual}</span>
-                          <span className="mx-1">/</span>
-                          <span>mín {i.stockMinimo}</span>
-                          <span className="ml-1">{i.unidad}</span>
-                        </span>
-                      </div>
-                    ))}
-                  </>
-                ) : null}
-              </>
-            )}
-          </CardContent>
+                      ))}
+                    </>
+                  ) : null}
+                </>
+              )}
+            </CardContent>
+          ) : null}
         </Card>
 
+        {/* Resumen de Platos / Unidades Vendidas */}
+        {consolidados.length > 0 ? (
+          <Card className="overflow-hidden p-0 card-elevated">
+            <CardHeader className="border-b border-border/60 bg-muted/30 p-3.5">
+              <CardTitle className="flex items-center justify-between gap-2 text-sm font-medium">
+                <span className="flex items-center gap-2">
+                  <ShoppingCart className="size-4 text-primary" />
+                  Platos y unidades vendidas ({periodo})
+                </span>
+                <span className="text-xs text-muted-foreground font-mono">
+                  {resumen.totalUnidades} un. total
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="divide-y divide-border p-0">
+              {consolidados.slice(0, 8).map((c, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 p-3 text-xs">
+                  <span className="font-medium truncate">{c.nombreProducto}</span>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="font-bold text-primary tabular-nums">
+                      {c.cantidad} {c.cantidad === 1 ? "unidad" : "unidades"}
+                    </span>
+                    <span className="font-mono tabular-nums text-muted-foreground">
+                      {formatPrecio(c.subtotal)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        ) : null}
+
+        {/* Gastos del período */}
         <Card className="overflow-hidden p-0 card-elevated">
           <CardHeader className="flex flex-row items-center justify-between gap-2 space-y-0 border-b border-border/60 bg-gradient-to-r from-muted/40 to-transparent p-3.5">
-            <CardTitle className="text-sm font-medium">Gastos del día</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Gastos ({periodo === "diario" ? "del día" : periodo === "semanal" ? "de la semana" : "del mes"})
+            </CardTitle>
             <Button size="sm" variant="outline" onClick={() => setShowGastoDialog(true)}>
               <Plus className="size-3.5" />
               Agregar
             </Button>
           </CardHeader>
           <CardContent className="divide-y divide-border p-0">
-            {gastosHoy.length === 0 ? (
+            {activeData.gastos.length === 0 ? (
               <p className="px-3 py-4 text-sm text-muted-foreground text-center">
-                Sin gastos registrados hoy.
+                Sin gastos registrados en este período.
               </p>
             ) : (
-              gastosHoy.map((g) => (
+              activeData.gastos.map((g) => (
                 <div key={g.id} className="flex items-center justify-between gap-2 p-3">
                   <div className="min-w-0">
                     <p className="truncate font-medium">{g.descripcion}</p>
-                    <Badge variant="outline" className="mt-0.5 capitalize text-[10px]">
-                      {g.categoria.replace(/_/g, " ")}
-                    </Badge>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Badge variant="outline" className="capitalize text-[10px]">
+                        {g.categoria.replace(/_/g, " ")}
+                      </Badge>
+                      {periodo !== "diario" ? (
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          {g.fecha}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <span className="font-heading font-semibold tabular-nums">
+                    <span className="font-heading font-semibold tabular-nums text-destructive">
                       {formatPrecio(g.monto)}
                     </span>
                     <button
@@ -339,32 +531,37 @@ export default function CierrePage() {
           </CardContent>
         </Card>
 
-        <VentasRapidasManager ventas={ventasRapidasHoy} />
+        {/* Ventas rápidas del período */}
+        <VentasRapidasManager ventas={activeData.ventasRapidas ?? []} />
 
+        {/* Pedidos del período */}
         <Card className="overflow-hidden p-0 card-elevated">
           <CardHeader className="border-b border-border/60 bg-muted/30 p-3.5">
             <CardTitle className="flex items-center gap-2 text-sm font-medium">
-              <ShoppingCart className="size-4 text-primary" />
-              Pedidos del día
+              <Calendar className="size-4 text-primary" />
+              Pedidos ({periodo === "diario" ? "del día" : periodo === "semanal" ? "semanales" : "mensuales"})
             </CardTitle>
           </CardHeader>
           <CardContent className="grid grid-cols-2 gap-2 p-4 pt-4 text-sm">
             <div>
               <p className="text-muted-foreground text-xs">Cerrados</p>
-              <p className="font-heading text-2xl font-bold tabular-nums">{resumen.cantidadPedidos}</p>
+              <p className="font-heading text-2xl font-bold tabular-nums">{pedidosCerrados.length}</p>
             </div>
             <div>
               <p className="text-muted-foreground text-xs">Pendientes</p>
               <p className="font-heading text-2xl font-bold tabular-nums">
-                {pedidosHoy.filter((p) => p.estado === "pendiente" || p.estado === "preparando").length}
+                {pedidosPendientes.length}
               </p>
             </div>
           </CardContent>
         </Card>
 
+        {/* Exportar y enviar */}
         <Card className="overflow-hidden p-0 card-elevated">
           <CardHeader className="border-b border-border/60 bg-muted/30 p-3.5">
-            <CardTitle className="text-sm font-medium">Exportar y enviar</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              Exportar y enviar ({periodo})
+            </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 p-3 pt-3">
             <Button className="w-full" variant="outline" onClick={handlePdf} disabled={generating !== null}>
@@ -373,7 +570,7 @@ export default function CierrePage() {
               ) : (
                 <FileText className="size-4" />
               )}
-              Descargar PDF
+              Descargar PDF ({periodo})
             </Button>
             <Button className="w-full" variant="outline" onClick={handleExcel} disabled={generating !== null}>
               {generating === "xlsx" ? (
@@ -381,7 +578,7 @@ export default function CierrePage() {
               ) : (
                 <FileSpreadsheet className="size-4" />
               )}
-              Descargar Excel
+              Descargar Excel ({periodo})
             </Button>
             <Button className="w-full" variant="outline" onClick={handleEmail}>
               <Mail className="size-4" />
@@ -394,13 +591,14 @@ export default function CierrePage() {
           </CardContent>
         </Card>
 
+        {/* Último cierre guardado */}
         {ultimoCierre ? (
           <Card className="card-elevated">
             <CardHeader className="pb-2">
               <CardTitle className="text-base">Último cierre guardado</CardTitle>
             </CardHeader>
             <CardContent className="p-3 pt-0 text-sm">
-              <p className="font-medium">{formatFechaLarga(ultimoCierre.fecha)}</p>
+              <p className="font-medium">{ultimoCierre.fecha}</p>
               <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
                 <div>
                   <p className="text-muted-foreground">Ventas</p>

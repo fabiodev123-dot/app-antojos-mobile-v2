@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Zap, Loader2 } from "lucide-react";
+import { Zap, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Sheet,
@@ -92,9 +92,17 @@ export function VentaRapidaSheet({ open, onOpenChange }: VentaRapidaSheetProps) 
       <SheetContent
         side="bottom"
         showCloseButton={false}
-        className="rounded-t-2xl border-t border-x-0 border-b-0 sm:max-w-md sm:mx-auto"
+        className="rounded-t-2xl border-t border-x-0 border-b-0 sm:max-w-md sm:mx-auto relative"
       >
-        <SheetHeader className="pb-3">
+        <button
+          type="button"
+          onClick={() => onOpenChange(false)}
+          className="absolute right-4 top-4 rounded-full p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          aria-label="Cerrar modal"
+        >
+          <X className="size-4" />
+        </button>
+        <SheetHeader className="pb-3 pr-8">
           <SheetTitle className="flex items-center gap-2 text-base">
             <Zap className="size-4 text-primary" />
             Anotar venta rápida

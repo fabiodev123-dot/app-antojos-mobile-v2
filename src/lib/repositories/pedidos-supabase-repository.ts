@@ -104,16 +104,12 @@ export const pedidosSupabaseRepository: Repository<Pedido> & {
     pedidosState.order.push(pedido.id);
     bumpVersion(PEDIDO_REPO_KEY);
 
-    void (async () => {
-      try {
-        await apiPost({ ...rest, items });
-      } catch (err) {
-        pedidosState.byId.delete(pedido.id);
-        pedidosState.order = pedidosState.order.filter((x) => x !== pedido.id);
-        bumpVersion(PEDIDO_REPO_KEY);
-        throw err;
-      }
-    })();
+    apiPost({ ...rest, items }).catch((err) => {
+      pedidosState.byId.delete(pedido.id);
+      pedidosState.order = pedidosState.order.filter((x) => x !== pedido.id);
+      bumpVersion(PEDIDO_REPO_KEY);
+      console.error("[pedidos-repo] create failed:", err);
+    });
 
     return pedido;
   },
@@ -136,15 +132,11 @@ export const pedidosSupabaseRepository: Repository<Pedido> & {
     pedidosState.byId.set(id, updated);
     bumpVersion(PEDIDO_REPO_KEY);
 
-    void (async () => {
-      try {
-        await apiPatch(id, rest);
-      } catch (err) {
-        pedidosState.byId.set(id, current);
-        bumpVersion(PEDIDO_REPO_KEY);
-        throw err;
-      }
-    })();
+    apiPatch(id, rest).catch((err) => {
+      pedidosState.byId.set(id, current);
+      bumpVersion(PEDIDO_REPO_KEY);
+      console.error(`[pedidos-repo] update ${id} failed:`, err);
+    });
 
     return updated;
   },
@@ -155,16 +147,12 @@ export const pedidosSupabaseRepository: Repository<Pedido> & {
     pedidosState.byId.delete(id);
     pedidosState.order = pedidosState.order.filter((x) => x !== id);
     bumpVersion(PEDIDO_REPO_KEY);
-    void (async () => {
-      try {
-        await apiDelete(id);
-      } catch (err) {
-        pedidosState.byId.set(id, existing);
-        pedidosState.order.push(id);
-        bumpVersion(PEDIDO_REPO_KEY);
-        throw err;
-      }
-    })();
+    apiDelete(id).catch((err) => {
+      pedidosState.byId.set(id, existing);
+      pedidosState.order.push(id);
+      bumpVersion(PEDIDO_REPO_KEY);
+      console.error(`[pedidos-repo] delete ${id} failed:`, err);
+    });
     return true;
   },
 
