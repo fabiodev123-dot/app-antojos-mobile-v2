@@ -64,11 +64,11 @@ export async function GET(req: NextRequest) {
         updatedAt: pedidosTable.updatedAt,
         itemId: pedidoItemsTable.id,
         itemProductoId: pedidoItemsTable.productoId,
-        itemNombre: pedidoItemsTable.nombre,
+        itemNombreProducto: pedidoItemsTable.nombreProducto,
         itemCantidad: pedidoItemsTable.cantidad,
         itemPrecioUnitario: pedidoItemsTable.precioUnitario,
         itemSubtotal: pedidoItemsTable.subtotal,
-        itemNotas: pedidoItemsTable.notas,
+        itemObservaciones: pedidoItemsTable.observaciones,
         itemTenantId: pedidoItemsTable.tenantId,
         itemCreatedAt: pedidoItemsTable.createdAt,
         itemUpdatedAt: pedidoItemsTable.updatedAt,
@@ -87,18 +87,18 @@ export async function GET(req: NextRequest) {
         id: r.itemId,
         pedidoId: first.id,
         productoId: r.itemProductoId,
-        nombre: r.itemNombre,
+        nombre: r.itemNombreProducto,
         cantidad: r.itemCantidad,
         precioUnitario: r.itemPrecioUnitario,
         subtotal: r.itemSubtotal,
-        notas: r.itemNotas,
+        observaciones: r.itemObservaciones,
         tenantId: r.itemTenantId,
         createdAt: r.itemCreatedAt,
         updatedAt: r.itemUpdatedAt,
       }));
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { itemId, itemProductoId, itemNombre, itemCantidad, itemPrecioUnitario, itemSubtotal, itemNotas, itemTenantId, itemCreatedAt, itemUpdatedAt, ...pedido } = first;
+    const { itemId, itemProductoId, itemNombreProducto, itemCantidad, itemPrecioUnitario, itemSubtotal, itemObservaciones, itemTenantId, itemCreatedAt, itemUpdatedAt, ...pedido } = first;
     return NextResponse.json({ ...pedido, items });
   }
 
@@ -139,11 +139,11 @@ export async function GET(req: NextRequest) {
       updatedAt: pedidosTable.updatedAt,
       itemId: pedidoItemsTable.id,
       itemProductoId: pedidoItemsTable.productoId,
-      itemNombre: pedidoItemsTable.nombre,
+      itemNombreProducto: pedidoItemsTable.nombreProducto,
       itemCantidad: pedidoItemsTable.cantidad,
       itemPrecioUnitario: pedidoItemsTable.precioUnitario,
       itemSubtotal: pedidoItemsTable.subtotal,
-      itemNotas: pedidoItemsTable.notas,
+      itemObservaciones: pedidoItemsTable.observaciones,
       itemTenantId: pedidoItemsTable.tenantId,
       itemCreatedAt: pedidoItemsTable.createdAt,
       itemUpdatedAt: pedidoItemsTable.updatedAt,
@@ -163,7 +163,7 @@ export async function GET(req: NextRequest) {
   for (const row of rows) {
     if (!pedidoMap.has(row.id)) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { itemId, itemProductoId, itemNombre, itemCantidad, itemPrecioUnitario, itemSubtotal, itemNotas, itemTenantId, itemCreatedAt, itemUpdatedAt, ...pedido } = row;
+      const { itemId, itemProductoId, itemNombreProducto, itemCantidad, itemPrecioUnitario, itemSubtotal, itemObservaciones, itemTenantId, itemCreatedAt, itemUpdatedAt, ...pedido } = row;
       pedidoMap.set(row.id, { ...pedido, items: [] });
     }
     if (row.itemId) {
@@ -172,11 +172,11 @@ export async function GET(req: NextRequest) {
         id: row.itemId,
         pedidoId: row.id,
         productoId: row.itemProductoId,
-        nombre: row.itemNombre,
+        nombre: row.itemNombreProducto,
         cantidad: row.itemCantidad,
         precioUnitario: row.itemPrecioUnitario,
         subtotal: row.itemSubtotal,
-        notas: row.itemNotas,
+        observaciones: row.itemObservaciones,
         tenantId: row.itemTenantId,
         createdAt: row.itemCreatedAt,
         updatedAt: row.itemUpdatedAt,
