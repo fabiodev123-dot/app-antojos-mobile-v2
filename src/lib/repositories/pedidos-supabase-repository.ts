@@ -27,11 +27,32 @@ const pedidosState: PedidoState = {
 
 const PEDIDO_REPO_KEY = Symbol("pedidos");
 
+// ── Dedupe + AbortController + TTL ──────────────────────────────────────────
+const STALE_MS = 30_000;
+const inflight = new Map<string, { promise: Promise<unknown>; ts: number }>();
+
 async function apiGet<T>(id?: string): Promise<T> {
   const url = id ? `/api/db/pedidos?id=${encodeURIComponent(id)}` : "/api/db/pedidos";
-  const res = await fetch(url, { credentials: "same-origin" });
-  if (!res.ok) throw new Error(`[pedidos-repo] GET ${id ?? "list"} failed: ${res.status}`);
-  return res.json() as Promise<T>;
+  const key = url;
+  const now = Date.now();
+
+  const existing = inflight.get(key);
+  if (existing && now - existing.ts < STALE_MS) {
+    return existing.promise as Promise<T>;
+  }
+
+  const controller = new AbortController();
+  const promise = fetch(url, { credentials: "same-origin", signal: controller.signal })
+    .then((res) => {
+      if (!res.ok) throw new Error(`[pedidos-repo] GET ${id ?? "list"} failed: ${res.status}`);
+      return res.json() as Promise<T>;
+    })
+    .finally(() => {
+      setTimeout(() => inflight.delete(key), 5_000);
+    });
+
+  inflight.set(key, { promise, ts: now });
+  return promise;
 }
 
 async function apiPost<T>(body: unknown): Promise<T> {
@@ -64,7 +85,7 @@ async function apiDelete(id: string): Promise<void> {
 }
 
 export const pedidosSupabaseRepository: Repository<Pedido> & {
-  ensureLoaded(): Promise<void>;
+  ensureLoaded(forceRefresh?: boolean): Promise<void>;
   getVersion(): number;
   subscribe(onChange: () => void): () => void;
 } = {
@@ -162,8 +183,10 @@ export const pedidosSupabaseRepository: Repository<Pedido> & {
     );
   },
 
-  async ensureLoaded() {
-    if (pedidosState.loaded) return;
+  let lastFetchAt = 0;
+
+  async ensureLoaded(forceRefresh = false) {
+    if (pedidosState.loaded && !forceRefresh && Date.now() - lastFetchAt < STALE_MS) return;
     if (pedidosState.loading) return pedidosState.loading;
     pedidosState.loading = (async () => {
       const rows = await apiGet<Array<Record<string, unknown>>>();
@@ -178,6 +201,7 @@ export const pedidosSupabaseRepository: Repository<Pedido> & {
         pedidosState.order.push(pedido.id);
       }
       pedidosState.loaded = true;
+      lastFetchAt = Date.now();
       bumpVersion(PEDIDO_REPO_KEY);
     })().finally(() => {
       pedidosState.loading = null;

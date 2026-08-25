@@ -98,16 +98,42 @@ export function dbRowToFrontend<T extends BaseEntity>(row: Record<string, unknow
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// FETCH HELPERS
+// FETCH HELPERS — dedupe + AbortController + TTL
 // ─────────────────────────────────────────────────────────────────────────────
+
+const STALE_MS = 30_000; // 30s — después de esto, el cache se considera stale
+const inflight = new Map<string, { promise: Promise<unknown>; ts: number }>();
+
+function cacheKey(url: string): string {
+  return url;
+}
 
 async function apiGet<T>(entity: string, id?: string): Promise<T> {
   const url = id
     ? `/api/db/${entity}?id=${encodeURIComponent(id)}`
     : `/api/db/${entity}`;
-  const res = await fetch(url, { credentials: "same-origin" });
-  if (!res.ok) throw new Error(`[supabase-repo] GET ${entity} ${id ?? "list"} failed: ${res.status}`);
-  return res.json() as Promise<T>;
+  const key = cacheKey(url);
+  const now = Date.now();
+
+  // Dedup: if same URL is in-flight and not stale, wait on it
+  const existing = inflight.get(key);
+  if (existing && now - existing.ts < STALE_MS) {
+    return existing.promise as Promise<T>;
+  }
+
+  const controller = new AbortController();
+  const promise = fetch(url, { credentials: "same-origin", signal: controller.signal })
+    .then((res) => {
+      if (!res.ok) throw new Error(`[supabase-repo] GET ${entity} ${id ?? "list"} failed: ${res.status}`);
+      return res.json() as Promise<T>;
+    })
+    .finally(() => {
+      // Keep in cache for dedup window even after completion
+      setTimeout(() => inflight.delete(key), 5_000);
+    });
+
+  inflight.set(key, { promise, ts: now });
+  return promise;
 }
 
 async function apiPost<T>(entity: string, body: unknown): Promise<T> {
@@ -155,7 +181,7 @@ export function createSupabaseRepository<
   entity: string,
   orderByKey: keyof T = "createdAt" as keyof T,
 ): Repository<T> & {
-  ensureLoaded(): Promise<void>;
+  ensureLoaded(forceRefresh?: boolean): Promise<void>;
   getVersion(): number;
   subscribe(onChange: () => void): () => void;
 } {
@@ -187,11 +213,14 @@ export function createSupabaseRepository<
     bumpVersion(REPO_KEY);
   }
 
-  async function ensureLoaded(): Promise<void> {
-    if (state.loaded) return;
+  let lastFetchAt = 0;
+
+  async function ensureLoaded(forceRefresh = false): Promise<void> {
+    if (state.loaded && !forceRefresh && Date.now() - lastFetchAt < STALE_MS) return;
     if (state.loading) return state.loading;
     state.loading = fetchAll().finally(() => {
       state.loading = null;
+      lastFetchAt = Date.now();
     });
     return state.loading;
   }
