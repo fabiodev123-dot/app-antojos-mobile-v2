@@ -337,9 +337,11 @@ export const movimientosStock = pgTable(
   "movimientos_stock",
   {
     id: text("id").primaryKey(),
+    // NOTA: la columna se llama "ingrediente_id" por herencia, pero la FK
+    // apunta a productos (los movimientos de stock registran productos vendidos).
     ingredienteId: text("ingrediente_id")
       .notNull()
-      .references(() => ingredientes.id, { onDelete: "restrict" }),
+      .references(() => productos.id, { onDelete: "restrict" }),
     tenantId: text("tenant_id").notNull(),
     tipo: tipoMovimientoStockEnum("tipo").notNull(),
     cantidad: numeric("cantidad", {
@@ -472,9 +474,9 @@ export const pedidoItemsRelations = relations(pedidoItems, ({ one }) => ({
 }));
 
 export const movimientosStockRelations = relations(movimientosStock, ({ one }) => ({
-  ingrediente: one(ingredientes, {
+  producto: one(productos, {
     fields: [movimientosStock.ingredienteId],
-    references: [ingredientes.id],
+    references: [productos.id],
   }),
   pedido: one(pedidos, {
     fields: [movimientosStock.pedidoId],
