@@ -200,7 +200,7 @@ export const ENTITIES_WITH_TENANT = new Set<string>([
   "ventas_rapidas",
   "pedidos",
   "pedido_items",
-  "movimientos_stock",
+  "movimientos-stock",
   "categorias",
   "productos",
   "ingredientes",
