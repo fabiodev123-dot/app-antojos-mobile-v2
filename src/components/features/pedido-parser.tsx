@@ -17,6 +17,7 @@ import type { Producto, TipoEntrega } from "@/lib/types";
 import { parsePedidoText, type ParseResult, type ParsedItem } from "@/lib/parse/pedido-text";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ProductoImagen } from "@/components/features/producto-imagen";
 import { formatPrecio } from "@/lib/format";
 
 interface PedidoParserProps {
@@ -321,15 +322,12 @@ function MatchedItemRow({ item }: { item: ParsedItem }) {
       <span className="font-mono font-semibold tabular-nums text-foreground bg-muted rounded px-1.5 py-0.5 min-w-7 text-center">
         {item.cantidad}×
       </span>
-      {product.imagen ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={product.imagen}
-          alt=""
-          aria-hidden
-          className="size-6 shrink-0 rounded-md bg-muted object-cover ring-1 ring-white/15 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.5)]"
-        />
-      ) : null}
+       <ProductoImagen
+         src={product.imagen}
+         emoji={product.emoji}
+         alt={product.nombre}
+         className="size-6 shrink-0 rounded-md bg-muted object-cover ring-1 ring-white/15 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.5)]"
+       />
       <span className={cn("truncate", lowConfidence && "text-warning")}>
         {product.nombre}
       </span>

@@ -23,6 +23,7 @@ import { Button } from "@/components/ui/button";
 import { formatPrecio } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { TipoEntrega } from "@/lib/types";
+import { ProductoImagen } from "@/components/features/producto-imagen";
 
 export interface ConfirmarItem {
   id: string;
@@ -218,20 +219,11 @@ export function ConfirmarPedidoModal({
                     <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-xs font-semibold tabular-nums">
                       {item.cantidad}×
                     </span>
-                    {item.imagen ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={item.imagen}
-                        alt=""
-                        aria-hidden
-                        className="size-8 shrink-0 rounded object-cover ring-1 ring-border"
-                      />
-                    ) : (
-                      <span
-                        className="size-8 shrink-0 rounded bg-muted ring-1 ring-border"
-                        aria-hidden
-                      />
-                    )}
+                     <ProductoImagen
+                       src={item.imagen}
+                       alt={item.nombre}
+                       className="size-8 shrink-0 rounded object-cover ring-1 ring-border"
+                     />
                     <span className="min-w-0 flex-1 truncate text-sm">
                       {item.nombre}
                     </span>

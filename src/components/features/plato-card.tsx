@@ -3,6 +3,7 @@ import { Minus, Plus, Pencil } from "lucide-react";
 import type { Producto } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
 import { ColorStripe } from "@/components/features/color-badge";
+import { ProductoImagen } from "@/components/features/producto-imagen";
 import { cn } from "@/lib/utils";
 
 interface PlatoCardAdmin {
@@ -34,8 +35,6 @@ export function PlatoCard({
   const Comp = onClick ? "button" : "div";
   const lowStock = producto.stockActual <= producto.stockMinimo;
   const noStock = producto.stockActual === 0;
-  const hasMedia = Boolean(producto.imagen) || Boolean(producto.emoji);
-
   const isAdmin = !!admin;
   const disableCardClick = isAdmin; // En admin el click no abre nada (los inputs manejan su propio click)
 
@@ -52,24 +51,12 @@ export function PlatoCard({
       >
         <ColorStripe color={producto.color} className="rounded-none" />
         <CardContent className="flex min-w-0 flex-1 items-center gap-2 py-2 pl-2 pr-3 sm:pr-4">
-          {hasMedia ? (
-            <div className="shrink-0">
-              {producto.imagen ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={producto.imagen}
-                  alt=""
-                  aria-hidden
-                  loading="lazy"
-                  className="size-10 rounded-md object-cover ring-1 ring-white/15 bg-muted shadow-[0_2px_8px_-2px_rgba(0,0,0,0.5)] sm:size-12"
-                />
-              ) : producto.emoji ? (
-                <span className="grid size-10 place-items-center rounded-md bg-muted text-lg sm:size-12 sm:text-xl">
-                  {producto.emoji}
-                </span>
-              ) : null}
-            </div>
-          ) : null}
+          <ProductoImagen
+            src={producto.imagen}
+            emoji={producto.emoji}
+            alt={producto.nombre}
+            className="size-10 rounded-md object-cover ring-1 ring-white/15 bg-muted shadow-[0_2px_8px_-2px_rgba(0,0,0,0.5)] sm:size-12"
+          />
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             {isAdmin && admin?.onNombreChange ? (
               <InlineText

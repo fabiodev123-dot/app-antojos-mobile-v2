@@ -31,6 +31,7 @@ import {
 } from "@/lib/services/pedido-service";
 import { nowIso } from "@/lib/repositories/types";
 import { ColorStripe } from "@/components/features/color-badge";
+import { ProductoImagen } from "@/components/features/producto-imagen";
 import { formatHora, formatPrecio } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { EstadoPedido, Pedido } from "@/lib/types";
@@ -180,13 +181,11 @@ export function PedidoDetailDialog({ open, onOpenChange, pedido }: PedidoDetailD
                   <div className="flex flex-1 items-center justify-between gap-2 p-2.5">
                     <div className="flex min-w-0 items-center gap-2">
                       {it.imagenProducto ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={it.imagenProducto}
-                          alt={it.nombreProducto}
-                          loading="lazy"
-                          className="size-10 shrink-0 rounded-lg bg-muted object-cover ring-1 ring-white/15 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.5)]"
-                        />
+                      <ProductoImagen
+                        src={it.imagenProducto}
+                        alt={it.nombreProducto}
+                        className="size-10 shrink-0 rounded-lg bg-muted object-cover ring-1 ring-white/15 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.5)]"
+                      />
                       ) : null}
                       <div className="min-w-0">
                         <p className="text-sm font-medium">

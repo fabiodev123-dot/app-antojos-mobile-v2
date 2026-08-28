@@ -37,6 +37,7 @@ import {
 } from "@/lib/schemas";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { ProductoImagen } from "@/components/features/producto-imagen";
 
 interface ProductoFormDialogProps {
   open: boolean;
@@ -418,25 +419,12 @@ export function ProductoFormDialog({ open, onOpenChange, producto, defaultCatego
                 Vista previa
               </p>
               <div className="mt-2 flex items-center gap-3">
-                {state.imagen ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={state.imagen}
-                    alt=""
-                    className="size-10 shrink-0 rounded-md object-cover ring-1 ring-white/15 bg-muted shadow-[0_2px_8px_-2px_rgba(0,0,0,0.5)] sm:size-12"
-                  />
-                ) : state.emoji ? (
-                  <span className="grid size-10 shrink-0 place-items-center rounded-md bg-muted text-lg sm:size-12 sm:text-xl">
-                    {state.emoji}
-                  </span>
-                ) : (
-                  <span
-                    className="size-10 shrink-0 rounded-md bg-muted sm:size-12"
-                    style={{
-                      borderLeft: `4px solid ${getColorConfig(state.color).bg}`,
-                    }}
-                  />
-                )}
+                 <ProductoImagen
+                   src={state.imagen}
+                   emoji={state.emoji}
+                   alt={state.nombre}
+                   className="size-10 shrink-0 rounded-md object-cover ring-1 ring-white/15 bg-muted shadow-[0_2px_8px_-2px_rgba(0,0,0,0.5)] sm:size-12"
+                 />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{state.nombre}</p>
                   <p className="text-[11px] text-muted-foreground">

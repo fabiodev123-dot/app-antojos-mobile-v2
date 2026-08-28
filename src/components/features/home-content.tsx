@@ -28,6 +28,7 @@ import { ShellHeader, PageHeader } from "@/components/layout/shell-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ButtonLink } from "@/components/ui/button-link";
 import { formatHora, formatPrecio, hoy } from "@/lib/format";
+import { ProductoImagen } from "@/components/features/producto-imagen";
 import { cn } from "@/lib/utils";
 import { WeeklySummary } from "@/components/features/weekly-summary";
 
@@ -176,24 +177,20 @@ export default function HomeContent() {
                   href="/pedidos"
                   className="group flex items-stretch gap-0 overflow-hidden rounded-xl border border-border bg-card hover-lift hover:border-primary/40"
                 >
-                  {p.items[0]?.imagenProducto ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={p.items[0].imagenProducto}
-                      alt=""
-                      aria-hidden
-                      loading="lazy"
-                      className="size-16 shrink-0 object-cover"
-                    />
-                  ) : (
-                    <div
-                      className={cn(
-                        "w-1.5 shrink-0",
-                        p.estado === "pendiente" ? "bg-warning" : "bg-info",
-                      )}
-                      aria-hidden
-                    />
-                  )}
+                   <ProductoImagen
+                     src={p.items[0]?.imagenProducto}
+                     alt=""
+                     className="size-16 shrink-0 object-cover"
+                     fallback={
+                       <div
+                         className={cn(
+                           "w-1.5 shrink-0",
+                           p.estado === "pendiente" ? "bg-warning" : "bg-info",
+                         )}
+                         aria-hidden
+                       />
+                     }
+                   />
                   <div className="flex-1 p-3 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-medium truncate">
@@ -264,22 +261,12 @@ export default function HomeContent() {
                     href="/productos"
                     className="flex items-center gap-3 text-sm rounded-lg px-2 py-1.5 hover:bg-muted/40 transition-colors"
                   >
-                    {p.imagen ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={p.imagen}
-                        alt=""
-                        aria-hidden
-                        loading="lazy"
-                        className="size-8 shrink-0 rounded-md object-cover ring-1 ring-border"
-                      />
-                    ) : p.emoji ? (
-                      <span className="size-8 shrink-0 grid place-items-center rounded-md bg-muted text-base">
-                        {p.emoji}
-                      </span>
-                    ) : (
-                      <span className="size-8 shrink-0 rounded-md bg-muted" aria-hidden />
-                    )}
+                     <ProductoImagen
+                       src={p.imagen}
+                       emoji={p.emoji}
+                       alt={p.nombre}
+                       className="size-8 shrink-0 rounded-md object-cover ring-1 ring-border"
+                     />
                     <span className="flex-1 truncate">{p.nombre}</span>
                     <span className="font-mono tabular-nums text-warning font-medium shrink-0">
                       {p.stockActual}

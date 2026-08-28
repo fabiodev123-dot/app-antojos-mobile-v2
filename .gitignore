@@ -44,3 +44,6 @@ next-env.d.ts
 
 # supabase local CLI state (linked project metadata)
 /supabase/.temp/
+
+# Working notes / instruction files (not app source)
+OPENCODE-IMAGENES-PENDIENTES.md
