@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+const INITIAL_DELAY_MS = 2_000;
 const STORAGE_KEY = "antojos_device_id";
 
 function getDeviceId(): string {
@@ -30,12 +31,16 @@ export function useDeviceHeartbeat(appVersion = "0.1.0") {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deviceId, appVersion }),
+        credentials: "same-origin",
         keepalive: true,
       }).catch(() => {});
     }
 
-    ping();
+    const timeout = setTimeout(ping, INITIAL_DELAY_MS);
     const interval = window.setInterval(ping, HEARTBEAT_INTERVAL_MS);
-    return () => window.clearInterval(interval);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
   }, [appVersion]);
 }

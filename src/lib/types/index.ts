@@ -42,6 +42,10 @@ export const COLOR_PLATO_HEX: Record<ColorPlato, { bg: string; ring: string; tex
   rose: { bg: "bg-rose-500", ring: "ring-rose-500/40", text: "text-rose-700 dark:text-rose-300", dot: "bg-rose-500", label: "Rosado" },
 };
 
+export function getColorConfig(color: ColorPlato | undefined | null) {
+  return COLOR_PLATO_HEX[color ?? "gray"] ?? COLOR_PLATO_HEX.gray;
+}
+
 export type EstadoPedido =
   | "pendiente"
   | "preparando"

@@ -25,7 +25,7 @@ import { ImageUploader } from "@/components/features/image-uploader";
 import { categoriasRepository, productosRepository } from "@/lib/repositories";
 import { useRepositoryList } from "@/hooks/use-repository";
 import {
-  COLOR_PLATO_HEX,
+  getColorConfig,
   type ColorPlato,
   type Producto,
 } from "@/lib/types";
@@ -362,7 +362,7 @@ export function ProductoFormDialog({ open, onOpenChange, producto, defaultCatego
               <p className="text-xs text-muted-foreground">
                 Seleccionado:{" "}
                 <span className="font-medium text-foreground">
-                  {COLOR_PLATO_HEX[state.color].label}
+                  {getColorConfig(state.color).label}
                 </span>{" "}
                 — se usa en el stripe del card para reconocer el plato de un vistazo.
               </p>
@@ -433,7 +433,7 @@ export function ProductoFormDialog({ open, onOpenChange, producto, defaultCatego
                   <span
                     className="size-10 shrink-0 rounded-md bg-muted sm:size-12"
                     style={{
-                      borderLeft: `4px solid ${COLOR_PLATO_HEX[state.color].bg}`,
+                      borderLeft: `4px solid ${getColorConfig(state.color).bg}`,
                     }}
                   />
                 )}
