@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { BottomNav } from "@/components/layout/bottom-nav";
 import { PwaInstall } from "@/components/features/pwa-install";
 import { PwaRegister } from "@/components/features/pwa-register";
-import { VentaRapidaFab } from "@/components/layout/venta-rapida-fab";
 import { useDeviceHeartbeat } from "@/hooks/use-device-heartbeat";
 import { initStorage } from "@/lib/storage/local-storage";
 
@@ -29,7 +28,6 @@ export function AppShell({
         {children}
       </div>
       <BottomNav />
-      <VentaRapidaFab />
       <PwaInstall />
       <PwaRegister />
       <Toaster position="top-center" richColors closeButton />
