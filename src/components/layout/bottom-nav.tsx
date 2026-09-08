@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Home, ClipboardList, Boxes, MoonStar, Plus, Store } from "lucide-react";
+import { Home, ClipboardList, Boxes, MoonStar, Plus } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { cn } from "@/lib/utils";
 import { PedidoNewSheet } from "@/components/features/pedido-new-sheet";
@@ -16,13 +16,12 @@ interface BottomNavItem {
   isAction?: boolean;
 }
 
-/** Inicio · Pedidos · [+Nuevo] · Stock · Landing · Cierre */
+/** Inicio · Pedidos · [+Nuevo] · Stock · Cierre */
 const ITEMS: BottomNavItem[] = [
   { href: "/home", label: "Inicio", icon: Home },
   { href: "/pedidos", label: "Pedidos", icon: ClipboardList },
   { href: "/pedidos/nuevo", label: "Nuevo", icon: Plus, isAction: true },
   { href: "/ingredientes", label: "Stock", icon: Boxes },
-  { href: "/", label: "Landing", icon: Store },
   { href: "/cierre", label: "Cierre", icon: MoonStar },
 ];
 
@@ -43,13 +42,12 @@ export function BottomNav() {
         role="navigation"
         aria-label="Menú principal"
       >
-        <ul className="mx-auto grid max-w-lg grid-cols-6 items-end gap-0 px-1 pt-1 pb-1">
+        {/* 5 columnas: Inicio · Pedidos · [FAB] · Stock · Cierre */}
+        <ul className="mx-auto grid max-w-lg grid-cols-5 items-end gap-0 px-1 pt-1 pb-1">
           {ITEMS.map((item) => {
             const isActive = item.isAction
               ? false
-              : item.href === "/"
-                ? pathname === "/"
-                : pathname.startsWith(item.href);
+              : pathname.startsWith(item.href);
 
             const Icon = item.icon;
             const isCenter = item.isAction === true;
@@ -63,7 +61,7 @@ export function BottomNav() {
                 )}
               >
                 {isCenter ? (
-                  /* ── Botón central: elevated FAB ── */
+                  /* ── FAB central ── */
                   <button
                     type="button"
                     onClick={() => setSheetOpen(true)}
@@ -81,7 +79,7 @@ export function BottomNav() {
                     <Plus className="size-5" strokeWidth={2.5} />
                   </button>
                 ) : (
-                  /* ── Links normales ── */
+                  /* ── Link normal ── */
                   <Link
                     href={item.href}
                     aria-current={isActive ? "page" : undefined}
@@ -94,7 +92,7 @@ export function BottomNav() {
                         : "text-muted-foreground active:text-foreground",
                     )}
                   >
-                    {/* ── Indicator: pill dot arriba del icono ── */}
+                    {/* ── Active indicator: pill ── */}
                     {isActive && (
                       <span
                         className="absolute -top-0.5 left-1/2 h-[3px] w-5 -translate-x-1/2 rounded-full bg-brand shadow-[0_0_8px_rgba(232,112,10,0.6)]"
