@@ -31,8 +31,9 @@ export async function middleware(request: NextRequest) {
   }
 
   // La landing (/) es pública para todos, pero si el usuario está logueado
-  // lo mandamos al dashboard para que vea sus pedidos/métricas
-  if (pathname === "/") {
+  // lo mandamos al dashboard para que vea sus pedidos/métricas.
+  // Si viene con ?public=1 (botón Landing del header), no redirigimos.
+  if (pathname === "/" && !request.nextUrl.searchParams.has("public")) {
     let response = NextResponse.next({ request });
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key =

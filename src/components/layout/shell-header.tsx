@@ -35,7 +35,7 @@ export function ShellHeader({
         <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
           {/* Botón Landing */}
           <Link
-            href="/"
+            href="/?public=1"
             className={cn(
               "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5",
               "text-xs font-medium text-muted-foreground",
