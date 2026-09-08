@@ -52,7 +52,7 @@ export async function loginAction(
     };
   }
 
-  redirect("/pedidos");
+  redirect("/home");
 }
 
 export async function logoutAction(): Promise<void> {

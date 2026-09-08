@@ -18,7 +18,9 @@ import {
   ArrowRight,
   Sparkles,
   BadgePercent,
+  LayoutDashboard,
 } from "lucide-react";
+import { getCurrentUserOrNull } from "@/lib/auth/context";
 import { seedCategorias } from "@/lib/mock/categorias";
 import { seedProductos } from "@/lib/mock/productos";
 import { formatPrecio } from "@/lib/format";
@@ -148,7 +150,8 @@ const PROMOS = [
 
 /* ──────────────────────────── PAGE ────────────────────────────── */
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const user = await getCurrentUserOrNull();
   const waPrincipal = waLink(WHATSAPP_NUMEROS[0].digits);
 
   return (
@@ -178,10 +181,17 @@ export default function LandingPage() {
               {UBICACION}
             </span>
             <Link
-              href="/login"
+              href={user ? "/home" : "/login"}
               className="flex h-9 items-center gap-1.5 rounded-full border border-white/15 px-4 text-sm font-medium text-zinc-300 transition-all duration-200 hover:bg-white/5 hover:text-white hover:border-white/25"
             >
-              Iniciar sesión
+              {user ? (
+                <>
+                  <LayoutDashboard className="size-3.5" />
+                  Ir al panel
+                </>
+              ) : (
+                "Iniciar sesión"
+              )}
             </Link>
             <a
               href={waPrincipal}
@@ -697,10 +707,10 @@ export default function LandingPage() {
               © 2026 Antojos · Hecho con ❤️ en Formosa
             </p>
             <Link
-              href="/login"
+              href={user ? "/home" : "/login"}
               className="text-xs text-zinc-500 hover:text-zinc-300 underline transition-colors"
             >
-              ¿Sos del equipo? Ingresá
+              {user ? "¿Sos del equipo? Entrá al panel" : "¿Sos del equipo? Ingresá"}
             </Link>
           </div>
         </div>

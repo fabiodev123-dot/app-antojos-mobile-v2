@@ -12,7 +12,7 @@ export default async function LoginPage() {
       .select("id")
       .eq("user_id", user.id)
       .maybeSingle() as { data: { id: string } | null };
-    redirect(superAdmin ? "/admin" : "/pedidos");
+    redirect(superAdmin ? "/admin" : "/home");
   }
   return <LoginForm />;
 }
