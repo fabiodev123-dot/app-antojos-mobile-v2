@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Home, ClipboardList, Boxes, MoonStar, Plus } from "lucide-react";
+import { Home, ClipboardList, Boxes, MoonStar, Plus, Store } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 import { cn } from "@/lib/utils";
 import { PedidoNewSheet } from "@/components/features/pedido-new-sheet";
@@ -17,10 +17,11 @@ interface BottomNavItem {
 }
 
 const ITEMS: BottomNavItem[] = [
-  { href: "/", label: "Inicio", icon: Home },
+  { href: "/pedidos", label: "Inicio", icon: Home },
   { href: "/pedidos", label: "Pedidos", icon: ClipboardList },
   { href: "/pedidos/nuevo", label: "Nuevo", icon: Plus, isAction: true },
   { href: "/ingredientes", label: "Stock", icon: Boxes },
+  { href: "/", label: "Landing", icon: Store },
   { href: "/cierre", label: "Cierre", icon: MoonStar },
 ];
 
@@ -31,7 +32,7 @@ export function BottomNav() {
   return (
     <>
       <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-border bg-background/85 backdrop-blur-xl supports-[backdrop-filter]:bg-background/70 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_32px_-12px_rgba(0,0,0,0.85)]">
-        <ul className="mx-auto grid max-w-6xl grid-cols-5 gap-1 px-2 pt-1.5">
+        <ul className="mx-auto grid max-w-6xl grid-cols-6 gap-1 px-2 pt-1.5">
           {ITEMS.map((item) => {
             const isActive = item.isAction
               ? false
