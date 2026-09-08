@@ -16,7 +16,8 @@ const PUBLIC_API_PREFIXES = ["/api/debug/"];
 const PUBLIC_ASSET_PREFIXES = ["/_next/", "/favicon.ico", "/manifest.webmanifest"];
 
 function isPublicPath(pathname: string): boolean {
-  if (PUBLIC_PAGE_PATHS.includes(pathname)) return true;
+  // / y /login son públicos, pero / se maneja aparte para redirect de user logueado
+  if (pathname === "/login" || pathname === "/admin/login") return true;
   if (PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p))) return true;
   if (PUBLIC_ASSET_PREFIXES.some((p) => pathname.startsWith(p))) return true;
   return false;
@@ -27,6 +28,40 @@ export async function middleware(request: NextRequest) {
 
   if (isPublicPath(pathname)) {
     return NextResponse.next({ request });
+  }
+
+  // La landing (/) es pública para todos, pero si el usuario está logueado
+  // lo mandamos al dashboard para que vea sus pedidos/métricas
+  if (pathname === "/") {
+    let response = NextResponse.next({ request });
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key =
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+
+    if (url && key) {
+      const supabase = createServerClient(url, key, {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            for (const { name, value } of cookiesToSet) {
+              request.cookies.set(name, value);
+            }
+            response = NextResponse.next({ request });
+            for (const { name, value, options } of cookiesToSet) {
+              response.cookies.set(name, value, options);
+            }
+          },
+        },
+      });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        return NextResponse.redirect(new URL("/pedidos", request.url));
+      }
+    }
+    return response;
   }
 
   let response = NextResponse.next({ request });
