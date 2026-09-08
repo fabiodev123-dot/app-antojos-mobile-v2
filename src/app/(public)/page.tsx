@@ -115,7 +115,7 @@ const PROMOS = [
     precioOriginal: null,
     descuento: null,
     imagen: "/imgplatos/1.jpg",
-    gradient: "from-orange-600/90 via-orange-800/70 to-zinc-950/95",
+    gradient: "from-zinc-950/30 via-zinc-950/50 to-zinc-950/95",
     accent: "text-orange-300",
   },
   {
@@ -128,7 +128,7 @@ const PROMOS = [
     precioOriginal: "$1.600",
     descuento: "50%",
     imagen: "/imgplatos/5.jpg",
-    gradient: "from-amber-600/90 via-amber-800/70 to-zinc-950/95",
+    gradient: "from-zinc-950/30 via-zinc-950/50 to-zinc-950/95",
     accent: "text-amber-300",
   },
   {
@@ -141,7 +141,7 @@ const PROMOS = [
     precioOriginal: null,
     descuento: null,
     imagen: "/imgplatos/8.jpg",
-    gradient: "from-brand/90 via-orange-900/70 to-zinc-950/95",
+    gradient: "from-zinc-950/30 via-zinc-950/50 to-zinc-950/95",
     accent: "text-orange-200",
   },
 ];
