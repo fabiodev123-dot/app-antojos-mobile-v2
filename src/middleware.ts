@@ -2,7 +2,7 @@
  * Middleware de autenticación con @supabase/ssr para Next.js App Router.
  *
  * - Refresca tokens de sesión expirados en cada request.
- * - Protege todas las rutas bajo `/` excepto `/login`, `/admin/login`, `/api/debug/*` y assets estáticos.
+ * - Protege todas las rutas bajo `/` excepto `/` (landing), `/login`, `/admin/login`, `/api/debug/*` y assets estáticos.
  * - Rutas `/admin/*` requieren además ser super admin (redirige a /login con razón forbidden si no).
  * - En peticiones a `/api/*` sin sesión retorna 401 JSON.
  * - En peticiones de página sin sesión redirige a `/login?reason=unauthenticated`.
@@ -11,7 +11,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-const PUBLIC_PAGE_PATHS = ["/login", "/admin/login"];
+const PUBLIC_PAGE_PATHS = ["/", "/login", "/admin/login"];
 const PUBLIC_API_PREFIXES = ["/api/debug/"];
 const PUBLIC_ASSET_PREFIXES = ["/_next/", "/favicon.ico", "/manifest.webmanifest"];
 

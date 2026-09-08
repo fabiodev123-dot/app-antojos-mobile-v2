@@ -11,7 +11,7 @@ import {
   Copy,
   Check,
 } from "lucide-react";
-import { logoutAction } from "@/app/login/actions";
+import { logoutAction } from "@/app/(public)/login/actions";
 
 export type UserMenuProps = {
   email: string | null;
