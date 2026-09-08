@@ -17,7 +17,7 @@ interface BottomNavItem {
 }
 
 const ITEMS: BottomNavItem[] = [
-  { href: "/pedidos", label: "Inicio", icon: Home },
+  { href: "/home", label: "Inicio", icon: Home },
   { href: "/pedidos", label: "Pedidos", icon: ClipboardList },
   { href: "/pedidos/nuevo", label: "Nuevo", icon: Plus, isAction: true },
   { href: "/ingredientes", label: "Stock", icon: Boxes },
