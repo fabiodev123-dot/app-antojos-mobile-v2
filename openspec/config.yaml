@@ -1,0 +1,42 @@
+# openspec/config.yaml
+
+schema: spec-driven
+
+context: |
+  Tech stack: Next.js 16.3.0 (App Router, Turbopack) + React 19.2.8 + TypeScript 5
+  Backend: Supabase (Auth + Postgres) via @supabase/ssr + Drizzle ORM (postgres.js)
+  Multi-tenant: tabla `tenants` + `tenant_users`; `tenant_id` en tablas de dominio
+  Deploy: Vercel (serverless) + Supabase Postgres (pooler transaction mode, puerto 6543)
+  Testing: vitest 2.1.9 (environment: node). 4 test files, todos de utils/schemas.
+  Style: ESLint 9 (eslint-config-next) + Prettier. Conventional commits, sin atribución de IA.
+  Gotcha: Drizzle `timestamp({withTimezone})` exige objeto Date, NO ISO string.
+
+strict_tdd: false
+
+rules:
+  proposal:
+    - Include rollback plan for risky changes
+    - Identify affected modules/packages
+    - Toda migración SQL debe ser idempotente y wary de RLS
+  specs:
+    - Use Given/When/Then format for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+    - Todo endpoint tenant-scoped MUST fallar cerrado (403) sin tenant_id
+  design:
+    - Include sequence diagrams for complex flows
+    - Document architecture decisions with rationale
+    - Distinguir app-layer filtering vs database-layer RLS
+  tasks:
+    - Group tasks by phase (infrastructure, implementation, testing)
+    - Use hierarchical numbering (1.1, 1.2, etc.)
+    - Keep tasks small enough to complete in one session
+  apply:
+    - Follow existing code patterns and conventions
+    - Load relevant coding skills for the project stack
+    - NO ejecutar `npm run build` (el usuario lo corre)
+  verify:
+    - Run tests if test infrastructure exists
+    - Compare implementation against every spec scenario
+    - Tests de aislamiento requieren 2 tenants reales en la DB
+  archive:
+    - Warn before merging destructive deltas (large removals)
