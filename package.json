@@ -9,7 +9,12 @@
     "lint": "eslint",
     "test": "vitest",
     "verify": "tsc --noEmit && eslint . && vitest run",
-    "admin:create": "tsx scripts/create-admin.ts"
+    "admin:create": "tsx scripts/create-admin.ts",
+    "test:iso:setup": "node scripts/setup-iso-fixtures.mjs",
+    "test:iso:cleanup": "node scripts/cleanup-iso-fixtures.mjs",
+    "test:iso:role": "node scripts/check-app-role.mjs",
+    "test:iso:backstop": "node scripts/test-rls-backstop.mjs",
+    "test:iso:impact": "node scripts/test-user-impact.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
