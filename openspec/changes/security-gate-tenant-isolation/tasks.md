@@ -63,15 +63,26 @@
 - [x] **5.4** Conclusión: la divergencia no requiere migración ni trigger. `get_user_tenant_id()` con fallback al JWT cubre el caso PostgREST; la app cubre el resto vía GUC.
 - [x] **5.5** Se evaluó el impacto de cada usuario sobre el dashboard: ninguno queda sin acceso.
 
-## Phase 6 — Isolation tests (PENDING — formalize)
+## Phase 6 — Isolation tests (DONE)
 
-- [ ] **6.1** Convertir los scripts de regresión en suite vitest de integración.
-- [ ] **6.2** La suite necesita una DB aislada (Supabase branch). Los scripts actuales corren contra el proyecto real con fixtures descartables.
+- [x] **6.1** Suite vitest de integración: `src/lib/auth/isolation.integration.test.ts` con 17 tests que cubren las dos capas (RLS + `resolveTenantScope`).
+- [x] **6.2** Los tests se **saltan** si los fixtures no están, para que `npm test` siga siendo usable sin base de datos. Verificado: sin fixtures → 16 skip + 1 pass.
+- [x] **6.3** `scripts/setup-iso-fixtures.mjs` crea los fixtures de forma idempotente (tenant + 3 usuarios). `scripts/cleanup-iso-fixtures.mjs` los borra — verificado que funciona.
+- [x] **6.4** Scripts npm: `test:iso:setup`, `test:iso:cleanup`, `test:iso:role`, `test:iso:backstop`, `test:iso:impact`.
+
+> **Gotcha**: un error de RLS aborta la transacción y deja la conexión muerta (`CONNECTION_ENDED`). El test que espera un INSERT fallido usa una conexión propia, y los `afterAll` cierran con `.catch(() => {})` para no romper la suite.
 
 ## Phase 7 — Close-out
 
-- [ ] **7.1** Re-check Supabase security advisors.
-- [ ] **7.2** Update `docs/architecture.md` con el modelo de aislamiento (capa app vs RLS vs rol).
-- [ ] **7.3** Clean up test fixtures: `scripts/cleanup-iso-fixtures.mjs`.
-- [ ] **7.4** Archive the change: `openspec/changes/archive/security-gate-tenant-isolation/`.
+- [ ] **7.1** Higiene de advisors: fijar `search_path` en las 13 funciones `SECURITY DEFINER` restantes y `REVOKE EXECUTE` de `anon` a `get_plan_catalog()`. (Ambos son WARN de bajo riesgo: `get_plan_catalog` sólo devuelve el catálogo de planes, dato público de marketing.)
+- [ ] **7.2** Update `docs/architecture.md` con el modelo de aislamiento (capa app + RLS + rol).
+- [ ] **7.3** Limpiar fixtures de la base antes de entregar: `npm run test:iso:cleanup`.
+- [ ] **7.4** Archivar el cambio: `openspec/changes/archive/security-gate-tenant-isolation/`.
+
+## Phase 8 — Deploy (PENDING del usuario)
+
+- [ ] **8.1** Vercel → `APP_DATABASE_URL` = `postgresql://antojos_app.<PROJECT_REF>:<PASSWORD>@aws-0-us-west-2.pooler.supabase.com:6543/postgres`
+- [ ] **8.2** Vercel → `DEBUG_STATE_SECRET` = valor generado en la sesión.
+- [ ] **8.3** Push a `main` → Vercel redespliega con las dos capas activas.
+- [ ] **8.4** Verificar en producción: `GET /api/debug/state` anónimo → 404; `/admin` → 200 con sesión de super admin.
 
