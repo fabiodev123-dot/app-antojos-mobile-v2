@@ -15,6 +15,12 @@
  * - Tenant user → su tenantId del JWT.
  * - Super admin → debe pasar `tenant_id` en el body.
  * - GET filtra por tenant (excepto super admin).
+ *
+ * ⚠️ AISLAMIENTO FAIL-CLOSED (fix de seguridad):
+ * El scope se resuelve con `resolveTenantScope()`. Si la operación exige
+ * tenant y el caller no tiene uno resoluble → 403 sin tocar la base. Antes
+ * el filtro era condicional y un usuario autenticado SIN tenant quedaba
+ * con queries sin filtro de tenant (lectura/edición/borrado cross-tenant).
  */
 import { type NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
@@ -22,6 +28,23 @@ import { db } from "@/lib/db";
 import { pedidos as pedidosTable, pedidoItems as pedidoItemsTable } from "@/lib/db/schema";
 import { newId } from "@/lib/repositories/types";
 import { requireSession } from "@/lib/auth/session";
+import { resolveTenantScope } from "@/lib/auth/tenant-scope";
+
+/** Resuelve el scope fail-closed. Devuelve el tenantId o un error. */
+async function resolveScope(
+  session: { tenantId: string | null; isSuperAdmin: boolean },
+  requestedTenantId?: string | null,
+  mode: "read" | "write" = "read",
+): Promise<{ tenantId: string | null } | { response: NextResponse }> {
+  const result = await resolveTenantScope(
+    session,
+    true,
+    requestedTenantId ?? null,
+    mode,
+  );
+  if (!result.ok) return { response: result.response };
+  return { tenantId: result.scope.tenantId };
+}
 
 export async function GET(req: NextRequest) {
   const auth = await requireSession();
@@ -31,12 +54,14 @@ export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
   const filterTenant = req.nextUrl.searchParams.get("tenant_id");
 
+  // Scope fail-closed: sin tenant resoluble → 403 sin tocar la base.
+  const scope = await resolveScope(session, filterTenant);
+  if ("response" in scope) return scope.response;
+
   if (id) {
     const filters = [eq(pedidosTable.id, id)];
-    if (session.tenantId && !session.isSuperAdmin) {
-      filters.push(eq(pedidosTable.tenantId, session.tenantId));
-    } else if (session.isSuperAdmin && filterTenant) {
-      filters.push(eq(pedidosTable.tenantId, filterTenant));
+    if (scope.tenantId) {
+      filters.push(eq(pedidosTable.tenantId, scope.tenantId));
     }
 
     // Un solo query con LEFT JOIN: pedido + items
@@ -107,10 +132,8 @@ export async function GET(req: NextRequest) {
   const offset = Number(req.nextUrl.searchParams.get("offset")) || undefined;
 
   const tenantFilters = [];
-  if (session.tenantId && !session.isSuperAdmin) {
-    tenantFilters.push(eq(pedidosTable.tenantId, session.tenantId));
-  } else if (session.isSuperAdmin && filterTenant) {
-    tenantFilters.push(eq(pedidosTable.tenantId, filterTenant));
+  if (scope.tenantId) {
+    tenantFilters.push(eq(pedidosTable.tenantId, scope.tenantId));
   }
 
   const whereClause = tenantFilters.length > 0 ? and(...tenantFilters) : undefined;
@@ -197,24 +220,14 @@ export async function POST(req: NextRequest) {
   const now = new Date();
   const pedidoId = newId();
 
-  // Resolver tenantId: tenant user → JWT, super admin → body, ninguno → 403.
-  let tenantId: string | null = session.tenantId;
-  if (!tenantId && session.isSuperAdmin) {
-    tenantId =
-      (typeof body.tenant_id === "string" && body.tenant_id) ||
-      (typeof body.tenantId === "string" && body.tenantId) ||
-      null;
-  }
-  if (!tenantId) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error:
-          "Sin tenant en JWT. Pasá tenant_id en el body (super admin) o usá un tenant user.",
-      },
-      { status: 403 },
-    );
-  }
+  // Scope fail-closed: sin tenant resoluble → 403, no se escribe nada.
+  const requestedTenant =
+    (typeof body.tenant_id === "string" && body.tenant_id) ||
+    (typeof body.tenantId === "string" && body.tenantId) ||
+    null;
+  const scope = await resolveScope(session, requestedTenant, "write");
+  if ("response" in scope) return scope.response;
+  const tenantId = scope.tenantId;
 
   // El body viene con timestamps como ISO strings (formato del frontend).
   // Drizzle espera Date objects para columnas timestamptz — convertimos acá.
@@ -268,9 +281,13 @@ export async function PATCH(req: NextRequest) {
   }
   const updates = sanitized;
 
+  // Scope fail-closed antes de construir el WHERE.
+  const scope = await resolveScope(session, null, "write");
+  if ("response" in scope) return scope.response;
+
   const filters = [eq(pedidosTable.id, id)];
-  if (session.tenantId && !session.isSuperAdmin) {
-    filters.push(eq(pedidosTable.tenantId, session.tenantId));
+  if (scope.tenantId) {
+    filters.push(eq(pedidosTable.tenantId, scope.tenantId));
   }
 
   await db
@@ -291,9 +308,13 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Missing id query param" }, { status: 400 });
   }
 
+  // Scope fail-closed antes de construir el WHERE.
+  const scope = await resolveScope(session, null, "write");
+  if ("response" in scope) return scope.response;
+
   const filters = [eq(pedidosTable.id, id)];
-  if (session.tenantId && !session.isSuperAdmin) {
-    filters.push(eq(pedidosTable.tenantId, session.tenantId));
+  if (scope.tenantId) {
+    filters.push(eq(pedidosTable.tenantId, scope.tenantId));
   }
 
   await db.delete(pedidosTable).where(and(...filters));

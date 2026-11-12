@@ -17,8 +17,16 @@
  * - `ENTITIES_WITH_TENANT` (en lib/auth/session.ts) define qué entidades
  *   requieren `tenant_id`. Para esas:
  *     - Tenant user: tenantId del JWT, ignora cualquier tenantId del body.
- *     - Super admin: si pasa `tenant_id` en el body, lo usa; si no, 400.
+ *     - Super admin: si pasa `tenant_id` en el body, lo usa; si no, 403.
  * - GET filtra por tenant automáticamente (excepto super admin que ve todos).
+ *
+ * ⚠️ AISLAMIENTO FAIL-CLOSED (fix de seguridad):
+ * El scope de tenant se resuelve UNA vez con `resolveTenantScope()`. Si la
+ * entidad exige tenant y el caller no tiene uno resoluble → 403, y NO se
+ * ejecuta ninguna query. Antes el filtro era condicional
+ * (`if (session.tenantId && ...)`) y un usuario autenticado SIN tenant caía
+ * fuera de todas las ramas, dejando el query sin filtro de tenant: podía
+ * leer, editar y borrar filas de cualquier tenant. Verificado empíricamente.
  *
  * Auth:
  * - requireSession() en todos los métodos. Sin sesión → 401.
@@ -41,6 +49,7 @@ import {
 } from "@/lib/db/schema";
 import { newId } from "@/lib/repositories/types";
 import { ENTITIES_WITH_TENANT, requireSession } from "@/lib/auth/session";
+import { resolveTenantScope } from "@/lib/auth/tenant-scope";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Whitelist de entidades → tabla Drizzle
@@ -89,61 +98,36 @@ function getEntity(name: string) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Tenant helpers
+// Tenant scope
 // ─────────────────────────────────────────────────────────────────────────────
 
-type TenantContext = {
-  tenantId: string | null;
-  isSuperAdmin: boolean;
-};
-
 /**
- * Resuelve el tenantId que se debe usar para escribir una fila.
- * - Tenant user → su tenantId del JWT (ignora cualquier tenantId del body).
- * - Super admin → tenant_id explícito del body (snake_case o camelCase).
- * - Si la entidad requiere tenant y no se puede resolver → 400.
+ * Resuelve el scope de tenant para la operación (fail-closed).
+ * Devuelve el tenantId a usar, o un NextResponse de error.
  */
-function resolveTenantForWrite(
-  ctx: TenantContext,
+async function resolveScope(
+  session: { tenantId: string | null; isSuperAdmin: boolean },
   requiresTenant: boolean,
-  body: Record<string, unknown>,
-): { tenantId: string } | { error: NextResponse } {
-  if (!requiresTenant) return { tenantId: "" };
+  requestedTenantId?: string | null,
+  mode: "read" | "write" = "read",
+): Promise<{ tenantId: string | null } | { response: NextResponse }> {
+  const result = await resolveTenantScope(
+    session,
+    requiresTenant,
+    requestedTenantId ?? null,
+    mode,
+  );
+  if (!result.ok) return { response: result.response };
+  return { tenantId: result.scope.tenantId };
+}
 
-  if (ctx.tenantId) {
-    return { tenantId: ctx.tenantId };
-  }
-
-  if (ctx.isSuperAdmin) {
-    const fromBody =
-      (typeof body.tenant_id === "string" && body.tenant_id) ||
-      (typeof body.tenantId === "string" && body.tenantId) ||
-      null;
-    if (fromBody) {
-      return { tenantId: fromBody };
-    }
-    return {
-      error: NextResponse.json(
-        {
-          ok: false,
-          error:
-            "Esta entidad requiere tenant_id. Super admins deben pasarlo explícitamente en el body (tenant_id o tenantId).",
-        },
-        { status: 400 },
-      ),
-    };
-  }
-
-  return {
-    error: NextResponse.json(
-      {
-        ok: false,
-        error:
-          "Sin tenant en JWT. Esta entidad requiere un usuario asociado a un tenant.",
-      },
-      { status: 403 },
-    ),
-  };
+/** Lee `tenant_id` / `tenantId` del body de la petición. */
+function tenantIdFromBody(body: Record<string, unknown>): string | null {
+  return (
+    (typeof body.tenant_id === "string" && body.tenant_id) ||
+    (typeof body.tenantId === "string" && body.tenantId) ||
+    null
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -171,13 +155,20 @@ export async function GET(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const t = table as any;
 
+    // Scope fail-closed. Si la entidad exige tenant y no hay scope resoluble
+    // → 403 sin tocar la base de datos.
+    const filterTenant = req.nextUrl.searchParams.get("tenant_id");
+    const scope = await resolveScope(session, requiresTenant, filterTenant);
+    if ("response" in scope) return scope.response;
+
+    const limit = Number(req.nextUrl.searchParams.get("limit")) || undefined;
+    const offset = Number(req.nextUrl.searchParams.get("offset")) || undefined;
+
     if (id) {
       const filters = [eq(t.id, id)];
-      if (requiresTenant && session.tenantId && !session.isSuperAdmin) {
-        filters.push(eq(t.tenantId, session.tenantId));
-      } else if (requiresTenant && session.isSuperAdmin) {
-        const filterTenant = req.nextUrl.searchParams.get("tenant_id");
-        if (filterTenant) filters.push(eq(t.tenantId, filterTenant));
+      // El filtro de tenant es OBLIGATORIO cuando la entidad lo requiere.
+      if (requiresTenant && scope.tenantId) {
+        filters.push(eq(t.tenantId, scope.tenantId));
       }
       const rows = await db.select().from(t).where(and(...filters)).limit(1);
       const row = rows[0];
@@ -185,28 +176,8 @@ export async function GET(
       return NextResponse.json(row);
     }
 
-    if (requiresTenant && session.tenantId && !session.isSuperAdmin) {
-      const limit = Number(req.nextUrl.searchParams.get("limit")) || undefined;
-      const offset = Number(req.nextUrl.searchParams.get("offset")) || undefined;
-      let query = db.select().from(t).where(eq(t.tenantId, session.tenantId)).$dynamic();
-      if (offset) query = query.offset(offset);
-      if (limit) query = query.limit(limit);
-      const rows = await query;
-      return NextResponse.json(rows);
-    }
-    if (requiresTenant && session.isSuperAdmin) {
-      const filterTenant = req.nextUrl.searchParams.get("tenant_id");
-      const limit = Number(req.nextUrl.searchParams.get("limit")) || undefined;
-      const offset = Number(req.nextUrl.searchParams.get("offset")) || undefined;
-      if (filterTenant) {
-        let query = db.select().from(t).where(eq(t.tenantId, filterTenant)).$dynamic();
-        if (offset) query = query.offset(offset);
-        if (limit) query = query.limit(limit);
-        const rows = await query;
-        return NextResponse.json(rows);
-      }
-      // Super admin sin filtro: ve todos los tenants.
-      let query = db.select().from(t).$dynamic();
+    if (requiresTenant && scope.tenantId) {
+      let query = db.select().from(t).where(eq(t.tenantId, scope.tenantId)).$dynamic();
       if (offset) query = query.offset(offset);
       if (limit) query = query.limit(limit);
       const rows = await query;
@@ -214,8 +185,6 @@ export async function GET(
     }
 
     // Entity without tenant
-    const limit = Number(req.nextUrl.searchParams.get("limit")) || undefined;
-    const offset = Number(req.nextUrl.searchParams.get("offset")) || undefined;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let query = db.select().from(t as any).$dynamic();
     if (offset) query = query.offset(offset);
@@ -248,12 +217,15 @@ export async function POST(
 
   const body = await req.json();
   const requiresTenant = ENTITIES_WITH_TENANT.has(entity);
-  const tenant = resolveTenantForWrite(
-    { tenantId: session.tenantId, isSuperAdmin: session.isSuperAdmin },
+
+  // Scope fail-closed: sin tenant resoluble → 403, no se escribe nada.
+  const scope = await resolveScope(
+    session,
     requiresTenant,
-    body,
+    tenantIdFromBody(body),
+    "write",
   );
-  if ("error" in tenant) return tenant.error;
+  if ("response" in scope) return scope.response;
 
   const now = new Date();
   const data: Record<string, unknown> = {
@@ -265,7 +237,7 @@ export async function POST(
     if (!READ_ONLY.has(k)) data[k] = maybeToDate(v);
   }
   if (requiresTenant) {
-    data.tenantId = tenant.tenantId;
+    data.tenantId = scope.tenantId;
   }
 
   try {
@@ -309,10 +281,14 @@ export async function PATCH(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const t = table as any;
 
+  // Scope fail-closed antes de construir el WHERE.
+  const scope = await resolveScope(session, requiresTenant, null, "write");
+  if ("response" in scope) return scope.response;
+
   // Construir WHERE clause respetando tenant isolation.
   const whereFilters = [eq(t.id, id)];
-  if (requiresTenant && session.tenantId && !session.isSuperAdmin) {
-    whereFilters.push(eq(t.tenantId, session.tenantId));
+  if (requiresTenant && scope.tenantId) {
+    whereFilters.push(eq(t.tenantId, scope.tenantId));
   }
 
   const updates: Record<string, unknown> = { updatedAt: new Date() };
@@ -362,9 +338,14 @@ export async function DELETE(
   const requiresTenant = ENTITIES_WITH_TENANT.has(entity);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const t = table as any;
+
+  // Scope fail-closed antes de construir el WHERE.
+  const scope = await resolveScope(session, requiresTenant, null, "write");
+  if ("response" in scope) return scope.response;
+
   const whereFilters = [eq(t.id, id)];
-  if (requiresTenant && session.tenantId && !session.isSuperAdmin) {
-    whereFilters.push(eq(t.tenantId, session.tenantId));
+  if (requiresTenant && scope.tenantId) {
+    whereFilters.push(eq(t.tenantId, scope.tenantId));
   }
 
   try {
