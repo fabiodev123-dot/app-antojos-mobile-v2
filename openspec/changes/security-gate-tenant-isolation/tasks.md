@@ -5,7 +5,7 @@
 - [x] **0.1** Supabase project resumed. Verified: DNS resolves, pooler accepts the tenant, MCP lists 30 tables.
 - [x] **0.2** Baseline schema already applied (migrations up to `032_unified_missing_tables`, 25/08). No re-apply needed.
 - [x] **0.3** Test tenants seeded: `tenant_test_iso` (1 categoria, 1 producto, 1 cliente) + 3 test users (`test_iso_sin_tenant@`, `test_iso_tenant_a@`, `test_iso_superadmin@`, password `TestIso123!pass`).
-- [ ] **0.4** Set `DEBUG_STATE_SECRET` env var in Vercel (Production + Preview). El valor NO se documenta en el repo..
+- [x] **0.4** `DEBUG_STATE_SECRET` seteado en Vercel (Production + Preview). El valor NO se documenta acá: está en la env var y en la memoria local del proyecto.
 
 ## Phase 1 — L1: Debug endpoint (DONE)
 
