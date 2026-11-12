@@ -22,9 +22,11 @@ There is **NO `src/middleware.ts`** file. The auth guard is only done per-page v
 
 **Fix**: Create `src/middleware.ts` using `@supabase/ssr` Next.js middleware pattern:
 - Refresh expired Supabase auth tokens
-- Protect ALL routes under `/` EXCEPT `/login`, `/admin/login`, `/api/debug/*`
+- Protect ALL routes under `/` EXCEPT `/login`, `/admin/login` and static assets
 - If no session → redirect to `/login`
 - Keep existing per-page checks as defense-in-depth
+
+> **RESUELTO (2026-11-12).** `src/middleware.ts` ya existe y cumple esto. Nota: `/api/debug/*` **ya NO es público** — la ruta `/api/debug/state` exige sesión de super admin y, en producción, además el header `x-debug-secret` con `DEBUG_STATE_SECRET`. No volver a eximir `/api/debug/*` de la autenticación: Doing so exponía los tenants de todos los clientes.
 
 ### 2. Unused `nowIso` Import in `pedidos/route.ts`
 File: `src/app/api/db/pedidos/route.ts:23`
