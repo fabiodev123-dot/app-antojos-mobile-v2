@@ -131,24 +131,19 @@ describe("resolveTenantScope", () => {
         { tenantId: null, isSuperAdmin: true },
         true,
         null,
-        "write",
       );
       expect(r.ok).toBe(false);
       if (!r.ok) expect(r.response.status).toBe(403);
     });
 
-    it("permite LECTURA global sin tenant_id (panel /admin)", async () => {
+    it("rechaza con 403 si no pasa tenant_id explícito", async () => {
       const r = await resolveTenantScope(
         { tenantId: null, isSuperAdmin: true },
         true,
         null,
-        "read",
       );
-      expect(r.ok).toBe(true);
-      if (r.ok) {
-        expect(r.scope.tenantId).toBeNull();
-        expect(r.scope.isSuperAdmin).toBe(true);
-      }
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.response.status).toBe(403);
     });
 
     it("acepta un tenant_id explícito que existe", async () => {
@@ -186,12 +181,11 @@ describe("resolveTenantScope", () => {
       if (r.ok) expect(r.scope.tenantId).toBe(TENANT_A);
     });
 
-    it("en modo write, un tenant_id explícito que existe también funciona", async () => {
+    it("un tenant_id explícito que existe también funciona", async () => {
       const r = await resolveTenantScope(
         { tenantId: null, isSuperAdmin: true },
         true,
         TENANT_B,
-        "write",
       );
       expect(r.ok).toBe(true);
       if (r.ok) expect(r.scope.tenantId).toBe(TENANT_B);
@@ -199,13 +193,17 @@ describe("resolveTenantScope", () => {
   });
 
   describe("el modo por defecto es lectura", () => {
-    it("permite lectura global al super admin sin tenant_id", async () => {
+    it("también exige tenant explícito al super admin (L4)", async () => {
+      // Con L4 la conexión de la app usa un rol sujeto a RLS: una lectura
+      // sin tenant no puede "ver todo" (la base la frenaría igual). El
+      // acceso global del super admin vive en el panel /admin, que usa el
+      // service role por otra vía.
       const r = await resolveTenantScope(
         { tenantId: null, isSuperAdmin: true },
         true,
       );
-      expect(r.ok).toBe(true);
-      if (r.ok) expect(r.scope.tenantId).toBeNull();
+      expect(r.ok).toBe(false);
+      if (!r.ok) expect(r.response.status).toBe(403);
     });
   });
 });

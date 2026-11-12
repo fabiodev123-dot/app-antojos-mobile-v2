@@ -70,31 +70,17 @@ export type TenantScopeResult =
  *                           petición). Sólo lo honra un super admin.
  */
 /**
- * Modo de la operación.
- *
- * - `read`: el super admin puede operar GLOBALMENTE (ver todos los tenants).
- *   Es lo que necesita el panel `/admin` para listar todo. El filtro de
- *   tenant se aplica sólo si se pasa `tenant_id` explícito.
- * - `write`: el super admin DEBE acotar a un tenant explícito. Escribir
- *   sin acotar dejaría filas huérfanas (sin `tenant_id` o con el de otro).
- */
-export type TenantScopeMode = "read" | "write";
-
-/**
  * Resuelve el scope de tenant para una operación.
  *
  * @param session            Sesión resuelta por `requireSession()`.
  * @param requiresTenant     Si la entidad/operación está atada a un tenant.
  * @param requestedTenantId  Tenant pedido explícitamente (query o cuerpo).
  *                           Sólo lo honra un super admin.
- * @param mode               `read` (global permitido a super admin) o
- *                           `write` (tenant explícito obligatorio).
  */
 export async function resolveTenantScope(
   session: { tenantId: string | null; isSuperAdmin: boolean },
   requiresTenant: boolean,
   requestedTenantId?: string | null,
-  mode: TenantScopeMode = "read",
 ): Promise<TenantScopeResult> {
   // Sin scope de tenant: la operación no está atada a un tenant.
   if (!requiresTenant) {
@@ -112,7 +98,7 @@ export async function resolveTenantScope(
     };
   }
 
-  // Super admin sin tenant propio: puede pedir uno explícito.
+  // Super admin sin tenant propio: puede operar sobre uno explícito.
   if (session.isSuperAdmin) {
     if (requestedTenantId) {
       const exists = await tenantValidator(requestedTenantId);
@@ -131,24 +117,19 @@ export async function resolveTenantScope(
       };
     }
 
-    // Lectura global: el super admin puede ver todos los tenants.
-    // Esto es lo que usa el panel `/admin`. `tenantId: null` significa
-    // "sin filtro" y sólo se alcanza con isSuperAdmin = true.
-    if (mode === "read") {
-      return {
-        ok: true,
-        scope: { tenantId: null, isSuperAdmin: true },
-      };
-    }
-
-    // Escritura sin acotar el tenant → fail closed.
+    // Sin tenant explícito no hay forma de acotar el scope → fail closed.
+    //
+    // Esto cambió con L4: la conexión de la app usa un rol sujeto a RLS,
+    // así que una operación sin tenant no puede "ver todo" — la base la
+    // frenaría igual. El acceso global del super admin vive en el panel
+    // /admin (service role, src/lib/services/admin-service.ts).
     return {
       ok: false,
       response: NextResponse.json(
         {
           ok: false,
           error:
-            "Esta escritura requiere un tenant. Super admins deben pasar tenant_id explícitamente.",
+            "Esta operación requiere un tenant. Super admins deben pasar tenant_id explícitamente.",
         },
         { status: 403 },
       ),

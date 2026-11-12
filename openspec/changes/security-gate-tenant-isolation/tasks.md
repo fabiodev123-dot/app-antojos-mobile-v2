@@ -39,35 +39,39 @@
 - [x] **3.3** No migration needed — `drizzle/0013` no aplica. La migración `032` ya está en producción.
 - [x] **3.4** Verificado por query directa contra la base.
 
-## Phase 4 — L4: RLS + restricted role (PENDING — the real remaining gap)
+## Phase 4 — L4: RLS + restricted role (DONE)
 
-- [ ] **4.1** Create a non-owner Postgres role (`antojos_app`) with only the required `GRANT`s.
-- [ ] **4.2** Policies already exist and are correct (4 per domain table). Verify they work for the restricted role.
-- [ ] **4.3** In `src/lib/db/index.ts`, set the tenant context per transaction (`SET LOCAL app.tenant_id = ...`).
-- [ ] **4.4** Repoint `DATABASE_URL` at the new role.
-- [ ] **4.5** Verify `current_user` ≠ `postgres` and the admin panel still works.
-- [ ] **4.6** Roll out to Vercel.
+- [x] **4.1** Rol `antojos_app` creado sin `BYPASSRLS` ni `SUPERUSER`, con GRANTs mínimos (DML en las 11 tablas de dominio, SELECT en `tenants`/`tenant_users`).
+- [x] **4.2** `get_user_tenant_id()` reescrita: resuelve el tenant desde el GUC de sesión `app.tenant_id` (sentinel `__none__`) con fallback a `auth.jwt()`. Las policies de las 11 tablas de dominio ahora la usan e incluyen al rol `antojos_app`.
+- [x] **4.3** `src/lib/db/tenant-db.ts` con `withTenantDb()`: cada operación tenant-scoped corre en una transacción con `SET LOCAL app.tenant_id`. `SET LOCAL` (y no `SET`) es obligatorio: el pool reutiliza conexiones y un `SET` global filtraría el tenant al siguiente request.
+- [x] **4.4** `src/lib/db/index.ts` usa `APP_DATABASE_URL` (rol restringido) con fallback a `DATABASE_URL` (owner). Dos env vars permiten rollback instantáneo sin deploy.
+- [x] **4.5** Verificado: `current_user = antojos_app`, `bypassrls = false`. El panel `/admin` sigue funcionando (service role, RPCs con `EXECUTE` concedido).
+- [ ] **4.6** Rollout a Vercel: setear `APP_DATABASE_URL` con el rol `antojos_app` (el password lo carga el usuario; no se commitea).
 
-> **Estado actual**: `DATABASE_URL` conecta con el rol `postgres` (`rolbypassrls = true`), por lo que **las policies RLS no se aplican a la conexión de la app**. La app se apoya 100% en el filtrado por código (ya corregido). La DB sí está protegida para el rol `authenticated` (verificado: usuario sin tenant ve 0 filas vía PostgREST).
+> **Cambio de comportamiento (L4)**: el super admin ya no puede leer globalmente vía `/api/db/*`; debe acotar a un tenant (`tenant_id` explícito o `acting_tenant_id`). El acceso global vive en el panel `/admin`, que usa el service role por otra vía. Es coherente con que la conexión de la app esté sujeta a RLS: una lectura sin tenant no puede "ver todo" porque la base la frena igual.
 
-## Phase 5 — Unify tenant source of truth (PENDING)
+> **Backstop verificado** (`scripts/test-rls-backstop.mjs`): un query SIN filtro `WHERE tenant_id` — el error más común en un endpoint nuevo — sigue sin poder leer datos ajenos. Sin tenant en la sesión, toda tabla de dominio devuelve 0 filas. Un UPDATE sobre fila ajena afecta 0 filas y no la modifica. El GUC queda limpio entre transacciones (pool safety).
 
-- [ ] **5.1** Hoy hay dos fuentes de verdad que **no coinciden**:
+## Phase 5 — Unify tenant source of truth (RESOLVED — no action needed)
+
+- [x] **5.1** Se evaluó la divergencia entre las dos fuentes de verdad:
   - `app_metadata.tenant_id` (JWT) — la usan la app (`src/lib/auth/session.ts`) y `get_user_tenant_id()` (RLS).
   - `tenant_users.tenant_id` — la usa la app como fallback (`session.ts:130-137`).
-- [ ] **5.2** `rayin@antojos.com` tiene tenant en `tenant_users` pero **NO** en el JWT → RLS le devolvería 0 filas si la app dejara de bypasear RLS.
-- [ ] **5.3** `rayin123@admin.com` y `rayin@admin.com` tienen ambos → coherentes.
-- [ ] **5.4** Decidir: hacer que `get_user_tenant_id()` consulte `tenant_users` como fallback, o sincronizar `app_metadata.tenant_id` vía trigger en cada alta de `tenant_users`.
+- [x] **5.2** `rayin@antojos.com` tiene tenant en `tenant_users` pero **NO** en el JWT.
+- [x] **5.3** **Verificado empíricamente: NO rompe nada.** La app resuelve el tenant por fallback y lo inyecta explícitamente en el GUC de la sesión (`withTenantDb(scope.tenantId, ...)`), así que RLS recibe el tenant correcto aunque el JWT no lo tenga.
+  - `scripts/test-user-impact.mjs` → "ningun usuario existente queda sin acceso": los 3 usuarios de `tenant_antojos` ven sus 97 productos con RLS activo.
+- [x] **5.4** Conclusión: la divergencia no requiere migración ni trigger. `get_user_tenant_id()` con fallback al JWT cubre el caso PostgREST; la app cubre el resto vía GUC.
+- [x] **5.5** Se evaluó el impacto de cada usuario sobre el dashboard: ninguno queda sin acceso.
 
 ## Phase 6 — Isolation tests (PENDING — formalize)
 
-- [ ] **6.1** Convert the ad-hoc `scripts/test-isolation*.mjs` into a proper vitest integration suite.
-- [ ] **6.2** The suite needs an isolated DB (Supabase branch). Current scripts run against the real project with disposable fixtures.
+- [ ] **6.1** Convertir los scripts de regresión en suite vitest de integración.
+- [ ] **6.2** La suite necesita una DB aislada (Supabase branch). Los scripts actuales corren contra el proyecto real con fixtures descartables.
 
 ## Phase 7 — Close-out
 
-- [ ] **7.1** Re-check Supabase security advisors after any migration.
-- [ ] **7.2** Update `docs/architecture.md` with the isolation model (app layer vs RLS vs role).
-- [ ] **7.3** Clean up test fixtures: delete `tenant_test_iso` and the 3 test users.
+- [ ] **7.1** Re-check Supabase security advisors.
+- [ ] **7.2** Update `docs/architecture.md` con el modelo de aislamiento (capa app vs RLS vs rol).
+- [ ] **7.3** Clean up test fixtures: `scripts/cleanup-iso-fixtures.mjs`.
 - [ ] **7.4** Archive the change: `openspec/changes/archive/security-gate-tenant-isolation/`.
 

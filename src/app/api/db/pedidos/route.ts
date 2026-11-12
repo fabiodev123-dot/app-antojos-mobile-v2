@@ -24,24 +24,18 @@
  */
 import { type NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
 import { pedidos as pedidosTable, pedidoItems as pedidoItemsTable } from "@/lib/db/schema";
 import { newId } from "@/lib/repositories/types";
 import { requireSession } from "@/lib/auth/session";
 import { resolveTenantScope } from "@/lib/auth/tenant-scope";
+import { withTenantDb } from "@/lib/db/tenant-db";
 
 /** Resuelve el scope fail-closed. Devuelve el tenantId o un error. */
 async function resolveScope(
   session: { tenantId: string | null; isSuperAdmin: boolean },
   requestedTenantId?: string | null,
-  mode: "read" | "write" = "read",
 ): Promise<{ tenantId: string | null } | { response: NextResponse }> {
-  const result = await resolveTenantScope(
-    session,
-    true,
-    requestedTenantId ?? null,
-    mode,
-  );
+  const result = await resolveTenantScope(session, true, requestedTenantId ?? null);
   if (!result.ok) return { response: result.response };
   return { tenantId: result.scope.tenantId };
 }
@@ -59,48 +53,50 @@ export async function GET(req: NextRequest) {
   if ("response" in scope) return scope.response;
 
   if (id) {
-    const filters = [eq(pedidosTable.id, id)];
-    if (scope.tenantId) {
-      filters.push(eq(pedidosTable.tenantId, scope.tenantId));
-    }
+    const rows = await withTenantDb(scope.tenantId, async (tx) => {
+      const filters = [eq(pedidosTable.id, id)];
+      if (scope.tenantId) {
+        filters.push(eq(pedidosTable.tenantId, scope.tenantId));
+      }
 
-    // Un solo query con LEFT JOIN: pedido + items
-    const rows = await db
-      .select({
-        id: pedidosTable.id,
-        numero: pedidosTable.numero,
-        clienteId: pedidosTable.clienteId,
-        nombreCliente: pedidosTable.nombreCliente,
-        telefonoCliente: pedidosTable.telefonoCliente,
-        direccionEntrega: pedidosTable.direccionEntrega,
-        subtotal: pedidosTable.subtotal,
-        envio: pedidosTable.envio,
-        total: pedidosTable.total,
-        estado: pedidosTable.estado,
-        canal: pedidosTable.canal,
-        tipoEntrega: pedidosTable.tipoEntrega,
-        observaciones: pedidosTable.observaciones,
-        fecha: pedidosTable.fecha,
-        hora: pedidosTable.hora,
-        cerradoAt: pedidosTable.cerradoAt,
-        entregadoAt: pedidosTable.entregadoAt,
-        tenantId: pedidosTable.tenantId,
-        createdAt: pedidosTable.createdAt,
-        updatedAt: pedidosTable.updatedAt,
-        itemId: pedidoItemsTable.id,
-        itemProductoId: pedidoItemsTable.productoId,
-        itemNombreProducto: pedidoItemsTable.nombreProducto,
-        itemCantidad: pedidoItemsTable.cantidad,
-        itemPrecioUnitario: pedidoItemsTable.precioUnitario,
-        itemSubtotal: pedidoItemsTable.subtotal,
-        itemObservaciones: pedidoItemsTable.observaciones,
-        itemTenantId: pedidoItemsTable.tenantId,
-        itemCreatedAt: pedidoItemsTable.createdAt,
-        itemUpdatedAt: pedidoItemsTable.updatedAt,
-      })
-      .from(pedidosTable)
-      .leftJoin(pedidoItemsTable, eq(pedidosTable.id, pedidoItemsTable.pedidoId))
-      .where(and(...filters));
+      // Un solo query con LEFT JOIN: pedido + items
+      return tx
+        .select({
+          id: pedidosTable.id,
+          numero: pedidosTable.numero,
+          clienteId: pedidosTable.clienteId,
+          nombreCliente: pedidosTable.nombreCliente,
+          telefonoCliente: pedidosTable.telefonoCliente,
+          direccionEntrega: pedidosTable.direccionEntrega,
+          subtotal: pedidosTable.subtotal,
+          envio: pedidosTable.envio,
+          total: pedidosTable.total,
+          estado: pedidosTable.estado,
+          canal: pedidosTable.canal,
+          tipoEntrega: pedidosTable.tipoEntrega,
+          observaciones: pedidosTable.observaciones,
+          fecha: pedidosTable.fecha,
+          hora: pedidosTable.hora,
+          cerradoAt: pedidosTable.cerradoAt,
+          entregadoAt: pedidosTable.entregadoAt,
+          tenantId: pedidosTable.tenantId,
+          createdAt: pedidosTable.createdAt,
+          updatedAt: pedidosTable.updatedAt,
+          itemId: pedidoItemsTable.id,
+          itemProductoId: pedidoItemsTable.productoId,
+          itemNombreProducto: pedidoItemsTable.nombreProducto,
+          itemCantidad: pedidoItemsTable.cantidad,
+          itemPrecioUnitario: pedidoItemsTable.precioUnitario,
+          itemSubtotal: pedidoItemsTable.subtotal,
+          itemObservaciones: pedidoItemsTable.observaciones,
+          itemTenantId: pedidoItemsTable.tenantId,
+          itemCreatedAt: pedidoItemsTable.createdAt,
+          itemUpdatedAt: pedidoItemsTable.updatedAt,
+        })
+        .from(pedidosTable)
+        .leftJoin(pedidoItemsTable, eq(pedidosTable.id, pedidoItemsTable.pedidoId))
+        .where(and(...filters));
+    });
 
     if (rows.length === 0) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
@@ -138,48 +134,50 @@ export async function GET(req: NextRequest) {
 
   const whereClause = tenantFilters.length > 0 ? and(...tenantFilters) : undefined;
 
-  let query = db
-    .select({
-      id: pedidosTable.id,
-      numero: pedidosTable.numero,
-      clienteId: pedidosTable.clienteId,
-      nombreCliente: pedidosTable.nombreCliente,
-      telefonoCliente: pedidosTable.telefonoCliente,
-      direccionEntrega: pedidosTable.direccionEntrega,
-      subtotal: pedidosTable.subtotal,
-      envio: pedidosTable.envio,
-      total: pedidosTable.total,
-      estado: pedidosTable.estado,
-      canal: pedidosTable.canal,
-      tipoEntrega: pedidosTable.tipoEntrega,
-      observaciones: pedidosTable.observaciones,
-      fecha: pedidosTable.fecha,
-      hora: pedidosTable.hora,
-      cerradoAt: pedidosTable.cerradoAt,
-      entregadoAt: pedidosTable.entregadoAt,
-      tenantId: pedidosTable.tenantId,
-      createdAt: pedidosTable.createdAt,
-      updatedAt: pedidosTable.updatedAt,
-      itemId: pedidoItemsTable.id,
-      itemProductoId: pedidoItemsTable.productoId,
-      itemNombreProducto: pedidoItemsTable.nombreProducto,
-      itemCantidad: pedidoItemsTable.cantidad,
-      itemPrecioUnitario: pedidoItemsTable.precioUnitario,
-      itemSubtotal: pedidoItemsTable.subtotal,
-      itemObservaciones: pedidoItemsTable.observaciones,
-      itemTenantId: pedidoItemsTable.tenantId,
-      itemCreatedAt: pedidoItemsTable.createdAt,
-      itemUpdatedAt: pedidoItemsTable.updatedAt,
-    })
-    .from(pedidosTable)
-    .leftJoin(pedidoItemsTable, eq(pedidosTable.id, pedidoItemsTable.pedidoId))
-    .$dynamic();
+  const rows = await withTenantDb(scope.tenantId, async (tx) => {
+    let query = tx
+      .select({
+        id: pedidosTable.id,
+        numero: pedidosTable.numero,
+        clienteId: pedidosTable.clienteId,
+        nombreCliente: pedidosTable.nombreCliente,
+        telefonoCliente: pedidosTable.telefonoCliente,
+        direccionEntrega: pedidosTable.direccionEntrega,
+        subtotal: pedidosTable.subtotal,
+        envio: pedidosTable.envio,
+        total: pedidosTable.total,
+        estado: pedidosTable.estado,
+        canal: pedidosTable.canal,
+        tipoEntrega: pedidosTable.tipoEntrega,
+        observaciones: pedidosTable.observaciones,
+        fecha: pedidosTable.fecha,
+        hora: pedidosTable.hora,
+        cerradoAt: pedidosTable.cerradoAt,
+        entregadoAt: pedidosTable.entregadoAt,
+        tenantId: pedidosTable.tenantId,
+        createdAt: pedidosTable.createdAt,
+        updatedAt: pedidosTable.updatedAt,
+        itemId: pedidoItemsTable.id,
+        itemProductoId: pedidoItemsTable.productoId,
+        itemNombreProducto: pedidoItemsTable.nombreProducto,
+        itemCantidad: pedidoItemsTable.cantidad,
+        itemPrecioUnitario: pedidoItemsTable.precioUnitario,
+        itemSubtotal: pedidoItemsTable.subtotal,
+        itemObservaciones: pedidoItemsTable.observaciones,
+        itemTenantId: pedidoItemsTable.tenantId,
+        itemCreatedAt: pedidoItemsTable.createdAt,
+        itemUpdatedAt: pedidoItemsTable.updatedAt,
+      })
+      .from(pedidosTable)
+      .leftJoin(pedidoItemsTable, eq(pedidosTable.id, pedidoItemsTable.pedidoId))
+      .$dynamic();
 
-  if (whereClause) query = query.where(whereClause);
-  if (offset) query = query.offset(offset);
-  if (limit) query = query.limit(limit);
+    if (whereClause) query = query.where(whereClause);
+    if (offset) query = query.offset(offset);
+    if (limit) query = query.limit(limit);
 
-  const rows = await query;
+    return query;
+  });
 
   // Agrupar por pedido
   const pedidoMap = new Map<string, Record<string, unknown>>();
@@ -225,7 +223,7 @@ export async function POST(req: NextRequest) {
     (typeof body.tenant_id === "string" && body.tenant_id) ||
     (typeof body.tenantId === "string" && body.tenantId) ||
     null;
-  const scope = await resolveScope(session, requestedTenant, "write");
+  const scope = await resolveScope(session, requestedTenant);
   if ("response" in scope) return scope.response;
   const tenantId = scope.tenantId;
 
@@ -252,7 +250,7 @@ export async function POST(req: NextRequest) {
     updatedAt: it.updatedAt ? new Date(it.updatedAt as string) : now,
   }));
 
-  await db.transaction(async (tx) => {
+  await withTenantDb(tenantId, async (tx) => {
     await tx.insert(pedidosTable).values(pedidoRow as typeof pedidosTable.$inferInsert);
     if (itemsRows.length > 0) {
       await tx.insert(pedidoItemsTable).values(itemsRows as (typeof pedidoItemsTable.$inferInsert)[]);
@@ -282,7 +280,7 @@ export async function PATCH(req: NextRequest) {
   const updates = sanitized;
 
   // Scope fail-closed antes de construir el WHERE.
-  const scope = await resolveScope(session, null, "write");
+  const scope = await resolveScope(session, null);
   if ("response" in scope) return scope.response;
 
   const filters = [eq(pedidosTable.id, id)];
@@ -290,10 +288,12 @@ export async function PATCH(req: NextRequest) {
     filters.push(eq(pedidosTable.tenantId, scope.tenantId));
   }
 
-  await db
-    .update(pedidosTable)
-    .set(updates as typeof pedidosTable.$inferInsert)
-    .where(and(...filters));
+  await withTenantDb(scope.tenantId, async (tx) => {
+    await tx
+      .update(pedidosTable)
+      .set(updates as typeof pedidosTable.$inferInsert)
+      .where(and(...filters));
+  });
 
   return NextResponse.json({ ok: true });
 }
@@ -309,7 +309,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   // Scope fail-closed antes de construir el WHERE.
-  const scope = await resolveScope(session, null, "write");
+  const scope = await resolveScope(session, null);
   if ("response" in scope) return scope.response;
 
   const filters = [eq(pedidosTable.id, id)];
@@ -317,7 +317,9 @@ export async function DELETE(req: NextRequest) {
     filters.push(eq(pedidosTable.tenantId, scope.tenantId));
   }
 
-  await db.delete(pedidosTable).where(and(...filters));
+  await withTenantDb(scope.tenantId, async (tx) => {
+    await tx.delete(pedidosTable).where(and(...filters));
+  });
   return NextResponse.json({ ok: true });
 }
 

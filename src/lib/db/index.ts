@@ -28,15 +28,37 @@ declare global {
   var __antojosDb: ReturnType<typeof drizzle> | undefined;
 }
 
+/**
+ * Cadena de conexión de la aplicación.
+ *
+ * - `APP_DATABASE_URL` (preferida): apunta al rol `antojos_app`, que NO
+ *   tiene BYPASSRLS, así que las policies RLS de tenant se aplican.
+ *   Es lo que la app DEBE usar en producción.
+ * - `DATABASE_URL`: el rol owner (`postgres`), que bypasea RLS. Se usa para
+ *   migraciones y mantenimiento. Sirve como fallback para no romper el
+ *   desarrollo local si `APP_DATABASE_URL` no está definida.
+ *
+ * ⚠️ Si en producción se usa `DATABASE_URL` (owner), la app queda sin la
+ * segunda capa de aislamiento: el filtrado por tenant de RLS no aplica.
+ * Ver openspec/changes/security-gate-tenant-isolation/.
+ */
+function getConnectionString(): string {
+  const appUrl = process.env.APP_DATABASE_URL;
+  const ownerUrl = process.env.DATABASE_URL;
+
+  if (appUrl) return appUrl;
+  if (ownerUrl) return ownerUrl;
+
+  throw new Error(
+    "[db] Ninguna de las env vars está definida: se necesita APP_DATABASE_URL " +
+      "(rol de la app, sujeto a RLS) o DATABASE_URL (rol owner, fallback). " +
+      "Setealas en .env.local o en las env vars de Vercel.",
+  );
+}
+
 function getClient(): ReturnType<typeof postgres> {
   if (globalThis.__antojosPgClient) return globalThis.__antojosPgClient;
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    throw new Error(
-      "[db] DATABASE_URL no está definida. Seteala en .env.local o en las env vars de Vercel. " +
-        "Si querés trabajar solo con localStorage, no uses los repos de Supabase.",
-    );
-  }
+  const connectionString = getConnectionString();
   const client = postgres(connectionString, {
     // Pool chico para serverless. Vercel escala horizontal con funciones efímeras;
     // cada función abre ~1 conexión.
@@ -51,7 +73,11 @@ function getClient(): ReturnType<typeof postgres> {
   return client;
 }
 
-function getDb(): ReturnType<typeof drizzle> {
+/**
+ * Obtiene (o crea) el cliente Drizzle. Exportado para módulos que
+ * necesitan construir su propia transacción (ver `tenant-db.ts`).
+ */
+export function getDb(): ReturnType<typeof drizzle> {
   if (globalThis.__antojosDb) return globalThis.__antojosDb;
   const db = drizzle(getClient(), { schema });
   if (process.env.NODE_ENV !== "production") {

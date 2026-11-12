@@ -35,7 +35,6 @@
  */
 import { type NextRequest, NextResponse } from "next/server";
 import { and, eq } from "drizzle-orm";
-import { db } from "@/lib/db";
 import {
   categorias,
   productos,
@@ -50,6 +49,7 @@ import {
 import { newId } from "@/lib/repositories/types";
 import { ENTITIES_WITH_TENANT, requireSession } from "@/lib/auth/session";
 import { resolveTenantScope } from "@/lib/auth/tenant-scope";
+import { withTenantDb } from "@/lib/db/tenant-db";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Whitelist de entidades → tabla Drizzle
@@ -109,13 +109,11 @@ async function resolveScope(
   session: { tenantId: string | null; isSuperAdmin: boolean },
   requiresTenant: boolean,
   requestedTenantId?: string | null,
-  mode: "read" | "write" = "read",
 ): Promise<{ tenantId: string | null } | { response: NextResponse }> {
   const result = await resolveTenantScope(
     session,
     requiresTenant,
     requestedTenantId ?? null,
-    mode,
   );
   if (!result.ok) return { response: result.response };
   return { tenantId: result.scope.tenantId };
@@ -164,32 +162,44 @@ export async function GET(
     const limit = Number(req.nextUrl.searchParams.get("limit")) || undefined;
     const offset = Number(req.nextUrl.searchParams.get("offset")) || undefined;
 
-    if (id) {
-      const filters = [eq(t.id, id)];
-      // El filtro de tenant es OBLIGATORIO cuando la entidad lo requiere.
-      if (requiresTenant && scope.tenantId) {
-        filters.push(eq(t.tenantId, scope.tenantId));
+    // Toda la operación corre dentro de una transacción con el tenant
+    // seteado en la sesión de Postgres (SET LOCAL). Así las policies RLS
+    // también filtran, aunque el filtro por código de más abajo se olvidara.
+    const rows = await withTenantDb(scope.tenantId, async (tx) => {
+      if (id) {
+        const filters = [eq(t.id, id)];
+        // El filtro de tenant es OBLIGATORIO cuando la entidad lo requiere.
+        if (requiresTenant && scope.tenantId) {
+          filters.push(eq(t.tenantId, scope.tenantId));
+        }
+        return tx.select().from(t).where(and(...filters)).limit(1);
       }
-      const rows = await db.select().from(t).where(and(...filters)).limit(1);
+
+      if (requiresTenant && scope.tenantId) {
+        let query = tx
+          .select()
+          .from(t)
+          .where(eq(t.tenantId, scope.tenantId))
+          .$dynamic();
+        if (offset) query = query.offset(offset);
+        if (limit) query = query.limit(limit);
+        return query;
+      }
+
+      // Entity without tenant
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let query = tx.select().from(t as any).$dynamic();
+      if (offset) query = query.offset(offset);
+      if (limit) query = query.limit(limit);
+      return query;
+    });
+
+    if (id) {
       const row = rows[0];
       if (!row) return NextResponse.json({ error: "Not found" }, { status: 404 });
       return NextResponse.json(row);
     }
 
-    if (requiresTenant && scope.tenantId) {
-      let query = db.select().from(t).where(eq(t.tenantId, scope.tenantId)).$dynamic();
-      if (offset) query = query.offset(offset);
-      if (limit) query = query.limit(limit);
-      const rows = await query;
-      return NextResponse.json(rows);
-    }
-
-    // Entity without tenant
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let query = db.select().from(t as any).$dynamic();
-    if (offset) query = query.offset(offset);
-    if (limit) query = query.limit(limit);
-    const rows = await query;
     return NextResponse.json(rows);
   } catch (err) {
     console.error("[api/db/[entity]] GET error:", err);
@@ -223,7 +233,6 @@ export async function POST(
     session,
     requiresTenant,
     tenantIdFromBody(body),
-    "write",
   );
   if ("response" in scope) return scope.response;
 
@@ -241,8 +250,13 @@ export async function POST(
   }
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await db.insert(table as any).values(data as any);
+    // La escritura corre dentro de una transacción con el tenant seteado:
+    // las policies RLS validan el INSERT (WITH CHECK) y bloquean escribir
+    // en un tenant distinto al del scope.
+    await withTenantDb(scope.tenantId, async (tx) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await tx.insert(table as any).values(data as any);
+    });
     return NextResponse.json(data, { status: 201 });
   } catch (err) {
     console.error("[api/db/[entity]] POST error:", err);
@@ -282,7 +296,7 @@ export async function PATCH(
   const t = table as any;
 
   // Scope fail-closed antes de construir el WHERE.
-  const scope = await resolveScope(session, requiresTenant, null, "write");
+  const scope = await resolveScope(session, requiresTenant, null);
   if ("response" in scope) return scope.response;
 
   // Construir WHERE clause respetando tenant isolation.
@@ -300,8 +314,10 @@ export async function PATCH(
   delete updates.tenant_id;
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await db.update(t).set(updates as any).where(and(...whereFilters));
+    await withTenantDb(scope.tenantId, async (tx) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await tx.update(t).set(updates as any).where(and(...whereFilters));
+    });
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[api/db/[entity]] PATCH error:", err);
@@ -340,7 +356,7 @@ export async function DELETE(
   const t = table as any;
 
   // Scope fail-closed antes de construir el WHERE.
-  const scope = await resolveScope(session, requiresTenant, null, "write");
+  const scope = await resolveScope(session, requiresTenant, null);
   if ("response" in scope) return scope.response;
 
   const whereFilters = [eq(t.id, id)];
@@ -349,9 +365,11 @@ export async function DELETE(
   }
 
   try {
-    const result = await db.delete(t).where(and(...whereFilters));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const rowCount = (result as any)?.count ?? 0;
+    const rowCount = await withTenantDb(scope.tenantId, async (tx) => {
+      const result = await tx.delete(t).where(and(...whereFilters));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (result as any)?.count ?? 0;
+    });
     return NextResponse.json({ ok: rowCount > 0 });
   } catch (err) {
     console.error("[api/db/[entity]] DELETE error:", err);
